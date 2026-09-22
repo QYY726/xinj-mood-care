@@ -1,6 +1,8 @@
-﻿# mood-care
 node_modules
 dist
 .vercel
 .DS_Store
-.vercel
+*.zip
+*-resp.json
+*-out.log
+deploy-*.log
