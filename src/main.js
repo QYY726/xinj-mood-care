@@ -135,6 +135,9 @@ const BREATHE_MODES = {
 
 const STORAGE_KEY = "moodcare-entries-v1";
 const TRIGGERS_KEY = "moodcare-triggers-v1";
+const USERS_KEY = "moodcare-users-v1";
+const SESSION_KEY = "moodcare-session-v1";
+const GUEST_KEY = "moodcare-guest-v1";
 
 const seedEntries = () => {
   const now = Date.now();
@@ -148,9 +151,94 @@ const seedEntries = () => {
   ];
 };
 
-function loadCustomTriggers() {
+function hashPassword(password) {
+  let h = 2166136261;
+  const s = `xinj:${password}`;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(16);
+}
+
+function loadUsers() {
   try {
-    const raw = localStorage.getItem(TRIGGERS_KEY);
+    const raw = localStorage.getItem(USERS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveUsers(users) {
+  localStorage.setItem(USERS_KEY, JSON.stringify(users));
+}
+
+function loadSessionUser() {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const u = JSON.parse(raw);
+    if (!u?.id || !u?.email) return null;
+    return { id: u.id, name: u.name || "心迹用户", email: u.email };
+  } catch {
+    return null;
+  }
+}
+
+function saveSessionUser(user) {
+  if (!user) localStorage.removeItem(SESSION_KEY);
+  else localStorage.setItem(SESSION_KEY, JSON.stringify({ id: user.id, name: user.name, email: user.email }));
+}
+
+function isGuestMode() {
+  return localStorage.getItem(GUEST_KEY) === "1";
+}
+
+function setGuestMode(on) {
+  if (on) localStorage.setItem(GUEST_KEY, "1");
+  else localStorage.removeItem(GUEST_KEY);
+}
+
+function scopeKey(base, scope) {
+  return `${base}:${scope || "guest"}`;
+}
+
+function loadEntriesFor(scope) {
+  const key = scopeKey(STORAGE_KEY, scope);
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) {
+      // migrate legacy unscoped data for guest once
+      if (scope === "guest") {
+        const legacy = localStorage.getItem(STORAGE_KEY);
+        if (legacy) {
+          localStorage.setItem(key, legacy);
+          return JSON.parse(legacy);
+        }
+      }
+      const seeded = seedEntries();
+      localStorage.setItem(key, JSON.stringify(seeded));
+      return seeded;
+    }
+    return JSON.parse(raw);
+  } catch {
+    return seedEntries();
+  }
+}
+
+function loadTriggersFor(scope) {
+  const key = scopeKey(TRIGGERS_KEY, scope);
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw && scope === "guest") {
+      const legacy = localStorage.getItem(TRIGGERS_KEY);
+      if (legacy) {
+        localStorage.setItem(key, legacy);
+        const list = JSON.parse(legacy);
+        return Array.isArray(list) ? list : [];
+      }
+    }
     if (!raw) return [];
     const list = JSON.parse(raw);
     return Array.isArray(list) ? list.filter((t) => typeof t === "string" && t.trim()) : [];
@@ -159,8 +247,17 @@ function loadCustomTriggers() {
   }
 }
 
+const bootUser = loadSessionUser();
+const bootGuest = !bootUser && isGuestMode();
+const bootScope = bootUser?.id || "guest";
+
+function loadCustomTriggers() {
+  return loadTriggersFor(state?.user?.id || (state?.guest ? "guest" : bootScope));
+}
+
 function saveCustomTriggers() {
-  localStorage.setItem(TRIGGERS_KEY, JSON.stringify(state.customTriggers));
+  const scope = state.user?.id || "guest";
+  localStorage.setItem(scopeKey(TRIGGERS_KEY, scope), JSON.stringify(state.customTriggers));
 }
 
 function allTriggers() {
@@ -195,9 +292,14 @@ function calcStreak() {
 }
 
 const state = {
-  view: "home",
-  entries: loadEntries(),
-  customTriggers: loadCustomTriggers(),
+  view: bootUser || bootGuest ? "home" : "auth",
+  user: bootUser,
+  guest: bootGuest,
+  authTab: "login",
+  authForm: { name: "", email: "", password: "", confirm: "" },
+  authError: "",
+  entries: loadEntriesFor(bootScope),
+  customTriggers: loadTriggersFor(bootScope),
   draft: { moodId: "calm", intensity: 5, triggers: [], note: "", customInput: "" },
   toast: "",
   followUp: null,
@@ -215,21 +317,140 @@ let breatheTimer = null;
 let toastTimer = null;
 
 function loadEntries() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      const seeded = seedEntries();
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(seeded));
-      return seeded;
-    }
-    return JSON.parse(raw);
-  } catch {
-    return seedEntries();
-  }
+  const scope = state.user?.id || "guest";
+  return loadEntriesFor(scope);
 }
 
 function saveEntries() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state.entries));
+  const scope = state.user?.id || "guest";
+  localStorage.setItem(scopeKey(STORAGE_KEY, scope), JSON.stringify(state.entries));
+}
+
+function reloadUserData() {
+  const scope = state.user?.id || "guest";
+  state.entries = loadEntriesFor(scope);
+  state.customTriggers = loadTriggersFor(scope);
+  state.draft = { moodId: "calm", intensity: 5, triggers: [], note: "", customInput: "" };
+}
+
+function enterAsGuest() {
+  setGuestMode(true);
+  saveSessionUser(null);
+  state.user = null;
+  state.guest = true;
+  state.authError = "";
+  reloadUserData();
+  state.view = "home";
+  showToast("已进入体验模式，数据保存在本机");
+}
+
+function logoutUser() {
+  saveSessionUser(null);
+  setGuestMode(false);
+  state.user = null;
+  state.guest = false;
+  state.authTab = "login";
+  state.authForm = { name: "", email: "", password: "", confirm: "" };
+  state.authError = "";
+  state.view = "auth";
+  stopBreathing();
+  render();
+}
+
+function registerUser() {
+  const name = state.authForm.name.trim();
+  const email = state.authForm.email.trim().toLowerCase();
+  const password = state.authForm.password;
+  const confirm = state.authForm.confirm;
+  if (!name || name.length < 2) return (state.authError = "请填写至少 2 个字的昵称"), render();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return (state.authError = "请输入有效邮箱"), render();
+  if (password.length < 6) return (state.authError = "密码至少 6 位"), render();
+  if (password !== confirm) return (state.authError = "两次密码不一致"), render();
+  const users = loadUsers();
+  if (users.some((u) => u.email === email)) return (state.authError = "该邮箱已注册，请直接登录"), render();
+  const user = {
+    id: "u" + Date.now(),
+    name,
+    email,
+    passwordHash: hashPassword(password),
+    createdAt: Date.now(),
+  };
+  users.push(user);
+  saveUsers(users);
+  setGuestMode(false);
+  saveSessionUser(user);
+  state.user = { id: user.id, name: user.name, email: user.email };
+  state.guest = false;
+  state.authError = "";
+  state.authForm = { name: "", email: "", password: "", confirm: "" };
+  reloadUserData();
+  state.view = "home";
+  showToast(`欢迎加入，${user.name}`);
+}
+
+function loginUser() {
+  const email = state.authForm.email.trim().toLowerCase();
+  const password = state.authForm.password;
+  if (!email || !password) return (state.authError = "请填写邮箱和密码"), render();
+  const users = loadUsers();
+  const found = users.find((u) => u.email === email);
+  if (!found || found.passwordHash !== hashPassword(password)) {
+    state.authError = "邮箱或密码不正确";
+    render();
+    return;
+  }
+  setGuestMode(false);
+  saveSessionUser(found);
+  state.user = { id: found.id, name: found.name, email: found.email };
+  state.guest = false;
+  state.authError = "";
+  state.authForm = { name: "", email: "", password: "", confirm: "" };
+  reloadUserData();
+  state.view = "home";
+  showToast(`欢迎回来，${found.name}`);
+}
+
+function renderAuth() {
+  const tab = state.authTab;
+  const f = state.authForm;
+  return `
+    <div class="auth-shell">
+      <div class="auth-card">
+        <div class="auth-brand">
+          <div class="mark">心迹</div>
+          <p>记录情绪，温柔对待自己</p>
+        </div>
+        <div class="auth-tabs">
+          <button type="button" class="${tab === "login" ? "active" : ""}" data-auth-tab="login">登录</button>
+          <button type="button" class="${tab === "register" ? "active" : ""}" data-auth-tab="register">注册</button>
+        </div>
+        ${state.authError ? `<div class="auth-error">${state.authError}</div>` : ""}
+        ${
+          tab === "register"
+            ? `<div class="field"><label>昵称</label><input data-auth-field="name" type="text" placeholder="怎么称呼你" value="${f.name}" autocomplete="nickname" /></div>`
+            : ""
+        }
+        <div class="field">
+          <label>邮箱</label>
+          <input data-auth-field="email" type="email" placeholder="you@example.com" value="${f.email}" autocomplete="email" />
+        </div>
+        <div class="field">
+          <label>密码</label>
+          <input data-auth-field="password" type="password" placeholder="${tab === "register" ? "至少 6 位" : "请输入密码"}" value="${f.password}" autocomplete="${tab === "register" ? "new-password" : "current-password"}" />
+        </div>
+        ${
+          tab === "register"
+            ? `<div class="field"><label>确认密码</label><input data-auth-field="confirm" type="password" placeholder="再输入一次" value="${f.confirm}" autocomplete="new-password" /></div>`
+            : ""
+        }
+        <div class="auth-actions">
+          <button class="btn-primary" type="button" data-auth-submit>${tab === "login" ? "登录" : "创建账号"}</button>
+          <button class="btn-ghost" type="button" data-auth-guest>先体验，无需登录</button>
+        </div>
+        <p class="auth-hint">账号与日记保存在本机浏览器，便于演示与私密记录。</p>
+      </div>
+    </div>
+  `;
 }
 
 function moodById(id) {
@@ -1129,20 +1350,36 @@ function renderNav() {
     ["breathe", "呼吸"],
     ["diary", "日记"],
   ];
+  const accountLabel = state.user
+    ? state.user.name
+    : state.guest
+      ? "体验中"
+      : "未登录";
   return `
     <header class="topbar">
       <div class="brand">
         <div class="brand-mark">心迹</div>
         <div class="brand-sub">情绪日记与自我关怀</div>
       </div>
-      <nav class="nav">
-        ${items
-          .map(
-            ([id, label]) =>
-              `<button data-nav="${id}" class="${state.view === id ? "active" : ""}">${label}</button>`
-          )
-          .join("")}
-      </nav>
+      <div class="topbar-right">
+        <div class="user-chip">
+          <span class="dot"></span>
+          <strong>${accountLabel}</strong>
+          ${
+            state.user
+              ? `<button type="button" data-logout>退出</button>`
+              : `<button type="button" data-goto-auth>登录</button>`
+          }
+        </div>
+        <nav class="nav">
+          ${items
+            .map(
+              ([id, label]) =>
+                `<button data-nav="${id}" class="${state.view === id ? "active" : ""}">${label}</button>`
+            )
+            .join("")}
+        </nav>
+      </div>
     </header>
   `;
 }
@@ -1642,6 +1879,15 @@ function renderDiary() {
 
 function render() {
   const root = document.getElementById("app");
+  if (state.view === "auth" || (!state.user && !state.guest)) {
+    state.view = "auth";
+    root.innerHTML = `
+      ${renderAuth()}
+      <div class="toast ${state.toast ? "show" : ""}">${state.toast}</div>
+    `;
+    bindAuth();
+    return;
+  }
   const views = {
     home: renderHome,
     record: renderRecord,
@@ -1662,10 +1908,52 @@ function render() {
   bind();
 }
 
+function bindAuth() {
+  document.querySelectorAll("[data-auth-tab]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.authTab = btn.getAttribute("data-auth-tab");
+      state.authError = "";
+      render();
+    });
+  });
+  document.querySelectorAll("[data-auth-field]").forEach((input) => {
+    input.addEventListener("input", (e) => {
+      const key = input.getAttribute("data-auth-field");
+      state.authForm[key] = e.target.value;
+    });
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        if (state.authTab === "login") loginUser();
+        else registerUser();
+      }
+    });
+  });
+  const submit = document.querySelector("[data-auth-submit]");
+  if (submit) {
+    submit.addEventListener("click", () => {
+      if (state.authTab === "login") loginUser();
+      else registerUser();
+    });
+  }
+  const guest = document.querySelector("[data-auth-guest]");
+  if (guest) guest.addEventListener("click", enterAsGuest);
+}
+
 function bind() {
   document.querySelectorAll("[data-nav]").forEach((btn) => {
     btn.addEventListener("click", () => setView(btn.getAttribute("data-nav")));
   });
+  const logoutBtn = document.querySelector("[data-logout]");
+  if (logoutBtn) logoutBtn.addEventListener("click", logoutUser);
+  const gotoAuth = document.querySelector("[data-goto-auth]");
+  if (gotoAuth) {
+    gotoAuth.addEventListener("click", () => {
+      state.view = "auth";
+      state.authError = "";
+      render();
+    });
+  }
   document.querySelectorAll("[data-quick]").forEach((btn) => {
     btn.addEventListener("click", () => {
       state.draft.moodId = btn.getAttribute("data-quick");
