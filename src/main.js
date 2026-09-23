@@ -839,6 +839,7 @@ function roundRect(ctx, x, y, w, h, r) {
 function closeCardModal() {
   const el = document.querySelector(".card-modal");
   if (el) el.remove();
+  document.body.style.overflow = "";
 }
 
 function dominantMoodFromEntries(entries) {
@@ -990,6 +991,7 @@ function showMoodCardModal(kind = "week") {
   const filePrefix = kind === "diary" ? "xinj-diary-card" : "xinj-week-card";
   const toastLabel = kind === "diary" ? "日记卡片" : "周报卡片";
   closeCardModal();
+  document.body.style.overflow = "hidden";
 
   const modal = document.createElement("div");
   modal.className = "card-modal";
@@ -1528,8 +1530,8 @@ function renderDiary() {
           <p>你的私密记录保存在本机浏览器中</p>
         </div>
         <div class="action-row">
-          <button class="btn-ghost" data-export-diary-card>导出为卡片</button>
-          <button class="btn-primary" data-nav="record">新记录</button>
+          <button class="btn-primary" data-export-diary-card>导出为卡片</button>
+          <button class="btn-ghost" data-nav="record">新记录</button>
         </div>
       </div>
       <div class="card timeline">
