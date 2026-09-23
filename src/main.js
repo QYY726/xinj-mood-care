@@ -610,6 +610,63 @@ function moodById(id) {
   return MOODS.find((m) => m.id === id) || MOODS[0];
 }
 
+/** 强度 = 感受有多强烈，不是情绪好坏 */
+function isDistressMood(moodId) {
+  return moodById(moodId).score <= 2;
+}
+
+function intensityHint(moodId) {
+  const m = moodById(moodId);
+  if (isDistressMood(moodId)) {
+    return `强度表示「${m.name}」有多强烈：越高越难受，调节后常希望它下来`;
+  }
+  if (m.score >= 4) {
+    return `强度表示「${m.name}」有多鲜明：越高感受越明显，并不等于越好或越坏`;
+  }
+  return "强度表示这种情绪有多强烈，与好坏无关";
+}
+
+function describeIntensityDelta(moodId, before, after) {
+  const delta = Number(before) - Number(after);
+  const m = moodById(moodId);
+  const change =
+    delta > 0 ? `感受强度下降 ${delta} 分` : delta < 0 ? `感受强度上升 ${Math.abs(delta)} 分` : "感受强度持平";
+  let note = "你已经停下来关照自己了。";
+  let positive = true;
+  if (delta !== 0 && isDistressMood(moodId)) {
+    if (delta > 0) {
+      note = "难受感松了一点，很好。";
+      positive = true;
+    } else {
+      note = "难受感还有起伏也没关系，停下来本身就很重要。";
+      positive = false;
+    }
+  } else if (delta !== 0) {
+    if (delta < 0) {
+      note = `「${m.name}」更鲜明了，也可以好好感受。`;
+      positive = true;
+    } else {
+      note = `「${m.name}」淡了一些，情绪本来就会流动。`;
+      positive = true;
+    }
+  }
+  return {
+    delta,
+    line: `相较调节前：${change}。${note}`,
+    toast:
+      delta === 0
+        ? "感受强度持平，至少你给了自己一次喘息"
+        : isDistressMood(moodId)
+          ? delta > 0
+            ? `难受感降了 ${delta} 分，你关照到自己了`
+            : "难受感有波动也没关系，停下来照顾自己本身就很重要"
+          : delta < 0
+            ? `「${m.name}」更鲜明了，也可以好好感受这份情绪`
+            : `「${m.name}」淡了一些，情绪流动本身就很自然`,
+    cls: positive ? "delta-good" : "delta-neutral",
+  };
+}
+
 function formatTime(ts) {
   const d = new Date(ts);
   const today = new Date();
@@ -709,15 +766,15 @@ function buildWeeklyReport() {
     else if (avgScore <= 2.2) headline = "这一周情绪波动偏大，你已经很努力了。";
     else headline = "这一周有起伏，也有被你接住的片刻。";
 
-    body.push(`你共记录了 ${week.length} 次情绪，平均强度 ${avgIntensity}/10。`);
+    body.push(`你共记录了 ${week.length} 次情绪，平均感受强度 ${avgIntensity}/10（强度=感受有多强烈，不是好坏）。`);
     if (topMood) body.push(`出现最多的是「${topMood.emoji} ${topMood.name}」（${topMood.count} 次）。`);
     if (topTrigger) {
-      body.push(`最常出现的触发因素是「${topTrigger.name}」，平均强度 ${topTrigger.avg}。`);
+      body.push(`最常出现的触发因素是「${topTrigger.name}」，平均感受强度 ${topTrigger.avg}。`);
     }
     if (highDays >= 2) {
-      body.push(`有 ${highDays} 次高强度体验（≥7）。下次遇到类似场景，可以先做一轮呼吸再回应。`);
+      body.push(`有 ${highDays} 次感受很强烈（≥7）。若当时是难受的情绪，下次可先做一轮呼吸再回应。`);
     } else {
-      body.push("高强度时刻不算多，说明你正在练习把情绪放下来再行动。");
+      body.push("特别强烈的时刻不算多，说明你正在练习先看见情绪再行动。");
     }
     body.push("下周可以试着：每天至少记录一次，并完成一次呼吸练习。");
   }
@@ -824,6 +881,7 @@ function openFollowUp(activity) {
     before,
     after: Math.max(1, before - 1),
     entryId: latest?.id || null,
+    moodId: latest?.moodId || state.draft.moodId || "calm",
   };
   assignView("followup");
   render();
@@ -844,12 +902,10 @@ function saveFollowUp() {
     };
     saveEntries();
   }
-  const delta = f.before - after;
+  const feedback = describeIntensityDelta(f.moodId, f.before, after);
   state.followUp = null;
   assignView("home");
-  if (delta > 0) showToast(`强度下降了 ${delta} 分，你关照到自己了`);
-  else if (delta < 0) showToast("强度有波动也没关系，停下来照顾自己本身就很重要");
-  else showToast("强度持平，至少你给了自己一次喘息");
+  showToast(feedback.toast);
 }
 
 function addCustomTrigger(raw) {
@@ -1133,7 +1189,7 @@ function buildWeeklyCardCanvas() {
   // stats row
   const stats = [
     { label: "本周记录", value: String(report.week.length) },
-    { label: "平均强度", value: report.avgIntensity ? String(report.avgIntensity) : "-" },
+    { label: "平均感受强度", value: report.avgIntensity ? String(report.avgIntensity) : "-" },
     { label: "主触发点", value: report.topTrigger ? report.topTrigger.name : "-" },
   ];
   stats.forEach((s, i) => {
@@ -1333,7 +1389,7 @@ function buildDiaryCardCanvas(range = DIARY_RANGES[0]) {
 
   const stats = [
     { label: "时段记录", value: String(entries.length) },
-    { label: "平均强度", value: avgIntensity || "-" },
+    { label: "平均感受强度", value: avgIntensity || "-" },
     { label: "连续签到", value: `${streak}天` },
   ];
   stats.forEach((s, i) => {
@@ -1619,10 +1675,6 @@ function renderHome() {
 function renderRecord() {
   const d = state.draft;
   const triggers = allTriggers();
-  const selected = moodById(d.moodId);
-  const tips = careFor(d.moodId);
-  const tipIndex = ((state.recordTipIndex % tips.length) + tips.length) % tips.length;
-  const tip = tips[tipIndex];
   const goodsFilled = countFilledGoods(state.goodsDraft);
   const weekGoods = goodsInRange(7).reduce((n, day) => n + day.items.length, 0);
   const latest = state.entries[0];
@@ -1636,27 +1688,6 @@ function renderRecord() {
       })
     : "";
 
-  const tipAction = tip.breathe
-    ? `<button class="btn-primary" data-start-breathe="${tip.breathe}">马上跟练呼吸</button>`
-    : tip.exercise === "goods"
-      ? ""
-      : `<button class="btn-primary" data-try-tip>去做这个 · 约 ${tip.mins} 分钟</button>`;
-
-  const goodsBlock =
-    tip.exercise === "goods"
-      ? `<div class="goods-box">
-          <div class="goods-progress">今日已写 <strong>${goodsFilled}/3</strong>${weekGoods ? ` · 近7天共 ${weekGoods} 件` : ""}</div>
-          ${GOODS_PROMPTS.map(
-            (prompt, i) => `
-            <label class="goods-item">
-              <span>${i + 1}. ${prompt}</span>
-              <input data-goods-input="${i}" type="text" maxlength="60" placeholder="写下一件就好" value="${escapeAttr(state.goodsDraft[i] || "")}" />
-            </label>`
-          ).join("")}
-          <button class="btn-primary" data-save-goods type="button">${goodsFilled >= 3 ? "更新三件好事" : "收好这些好事"}</button>
-        </div>`
-      : `<p>${tip.desc}</p>`;
-
   return `
     <section class="section">
       <div class="section-head">
@@ -1666,7 +1697,7 @@ function renderRecord() {
         </div>
       </div>
       <div class="grid-2 record-layout">
-        <div class="card">
+        <div class="card record-main">
           <div class="field">
             <label>此刻情绪</label>
             <div class="mood-grid">
@@ -1680,11 +1711,12 @@ function renderRecord() {
             </div>
           </div>
           <div class="field">
-            <label>情绪强度</label>
+            <label>情绪强度 <span class="field-hint">感受有多强烈，不是好坏</span></label>
             <div class="range-row">
               <input type="range" min="1" max="10" value="${d.intensity}" data-intensity />
               <div class="intensity-val">${d.intensity}/10</div>
             </div>
+            <p class="field-note">${intensityHint(d.moodId)}</p>
           </div>
           <div class="field">
             <label>可能的触发因素（可多选 / 可自定义）</label>
@@ -1703,34 +1735,38 @@ function renderRecord() {
               <button class="btn-soft" data-add-trigger type="button">添加</button>
             </div>
           </div>
-          <div class="field">
+          <div class="field field-grow">
             <label>想说的话（可选）</label>
             <textarea data-note placeholder="发生了什么？身体有什么感觉？">${d.note}</textarea>
           </div>
           <button class="btn-primary" data-save>保存并获取关怀建议</button>
         </div>
-        <aside class="record-side">
-          <div class="card record-tip">
-            <div class="record-tip-head">
-              <span class="tag">写完可试 · ${selected.emoji} ${selected.name}</span>
-              <button class="btn-ghost tip-swap" data-next-tip type="button">换一个</button>
+        <aside class="card record-side-card">
+          <div class="record-side-top">
+            <h3>今日三件好事</h3>
+            <p class="goods-progress">今日已写 <strong>${goodsFilled}/3</strong>${weekGoods ? ` · 近7天共 ${weekGoods} 件` : ""}</p>
+            <div class="goods-box">
+              ${GOODS_PROMPTS.map(
+                (prompt, i) => `
+                <label class="goods-item">
+                  <span>${i + 1}. ${prompt}</span>
+                  <input data-goods-input="${i}" type="text" maxlength="60" placeholder="写下一件就好" value="${escapeAttr(state.goodsDraft[i] || "")}" />
+                </label>`
+              ).join("")}
+              <button class="btn-primary" data-save-goods type="button">${goodsFilled >= 3 ? "更新三件好事" : "收好这些好事"}</button>
             </div>
-            <div class="tip-meta"><span>${tip.type}</span><span>约 ${tip.mins} 分钟</span><span>${tipIndex + 1}/${tips.length}</span></div>
-            <h3>${tip.title}</h3>
-            ${goodsBlock}
             <div class="record-side-actions">
-              ${tipAction}
-              ${tip.breathe ? "" : `<button class="btn-soft" data-nav="breathe">先呼吸一轮</button>`}
+              <button class="btn-soft" data-nav="breathe">先呼吸一轮</button>
               <button class="btn-ghost" data-nav="care">全部关怀建议</button>
             </div>
           </div>
-          <div class="card">
-            <h3 style="font-family:var(--font-display);margin-bottom:8px;">最近一条</h3>
+          <div class="record-latest-block">
+            <h3>最近一条</h3>
             ${
               latest
                 ? `<p class="record-latest">
                     <strong>${latestMood.emoji} ${latestMood.name}</strong>
-                    <span>强度 ${latest.intensity}/10 · ${latestTime}</span>
+                    <span>感受强度 ${latest.intensity}/10 · ${latestTime}</span>
                     ${latest.note ? `<em>${latest.note}</em>` : `<em style="opacity:.7">当时没有写文字</em>`}
                   </p>
                   <button class="btn-ghost" data-nav="diary" style="margin-top:10px;">查看全部日记</button>`
@@ -1764,7 +1800,7 @@ function renderInsight() {
       </div>
       <div class="stats">
         <div class="stat"><strong>${state.entries.length}</strong><span>累计记录</span></div>
-        <div class="stat"><strong>${avgIntensity}</strong><span>平均强度</span></div>
+        <div class="stat"><strong>${avgIntensity}</strong><span>平均感受强度</span></div>
         <div class="stat"><strong>${calcStreak()}</strong><span>连续签到</span></div>
       </div>
       <div class="grid-2">
@@ -1948,7 +1984,7 @@ function renderReport() {
 
       <div class="stats stats-4" style="margin-top:14px;">
         <div class="stat"><strong>${report.week.length}</strong><span>本周记录</span></div>
-        <div class="stat"><strong>${report.avgIntensity || "-"}</strong><span>平均强度</span></div>
+        <div class="stat"><strong>${report.avgIntensity || "-"}</strong><span>平均感受强度</span></div>
         <div class="stat"><strong>${report.topMood ? report.topMood.emoji + report.topMood.name : "-"}</strong><span>主导情绪</span></div>
         <div class="stat"><strong>${report.topTrigger ? report.topTrigger.name : "-"}</strong><span>主触发点</span></div>
       </div>
@@ -2006,7 +2042,7 @@ function renderCare() {
       <div class="section-head">
         <div>
           <h2>自我关怀方案</h2>
-          <p>基于「${mood.emoji} ${mood.name}」为你推荐，完成后可回访强度变化</p>
+          <p>基于「${mood.emoji} ${mood.name}」为你推荐，完成后可回访感受强度变化</p>
         </div>
         <button class="btn-ghost" data-nav="breathe">打开呼吸引导</button>
       </div>
@@ -2042,38 +2078,37 @@ function renderFollowUp() {
   if (!f) {
     return `<section class="section"><div class="card empty">没有进行中的回访，去完成一个关怀方案吧。<div style="margin-top:12px;"><button class="btn-soft" data-nav="care">回到关怀</button></div></div></section>`;
   }
-  const delta = f.before - Number(f.after);
-  const deltaText =
-    delta > 0 ? `下降 ${delta} 分` : delta < 0 ? `上升 ${Math.abs(delta)} 分` : "持平";
-  const deltaClass = delta > 0 ? "delta-good" : "delta-neutral";
+  const mood = moodById(f.moodId);
+  const feedback = describeIntensityDelta(f.moodId, f.before, f.after);
   return `
     <section class="section">
       <div class="section-head">
         <div>
           <h2>调节后回访</h2>
-          <p>刚完成「${f.activity}」，现在感觉如何？</p>
+          <p>刚完成「${f.activity}」，现在「${mood.emoji} ${mood.name}」的感受有多强烈？</p>
         </div>
       </div>
       <div class="card" style="max-width:560px;margin:0 auto;">
+        <p class="field-note" style="margin-bottom:14px;">${intensityHint(f.moodId)}</p>
         <div class="follow-compare">
           <div class="follow-box">
             <div class="num">${f.before}</div>
-            <div class="lbl">调节前强度</div>
+            <div class="lbl">调节前感受强度</div>
           </div>
           <div class="follow-arrow">→</div>
           <div class="follow-box">
             <div class="num">${f.after}</div>
-            <div class="lbl">现在强度</div>
+            <div class="lbl">现在感受强度</div>
           </div>
         </div>
         <div class="field">
-          <label>拖动记录现在的强度</label>
+          <label>拖动记录现在的感受强度</label>
           <div class="range-row">
             <input type="range" min="1" max="10" value="${f.after}" data-follow-after />
             <div class="intensity-val">${f.after}/10</div>
           </div>
         </div>
-        <p style="text-align:center;margin:8px 0 16px;" class="${deltaClass}">相较调节前：${deltaText}</p>
+        <p style="text-align:center;margin:8px 0 16px;" class="${feedback.cls}" data-follow-delta>${feedback.line}</p>
         <div class="action-row" style="justify-content:center;">
           <button class="btn-ghost" data-nav="care">跳过</button>
           <button class="btn-primary" data-save-followup>保存回访</button>
@@ -2340,16 +2375,15 @@ function bind() {
       if (label) label.textContent = `${e.target.value}/10`;
       const num = document.querySelectorAll(".follow-box .num")[1];
       if (num) num.textContent = e.target.value;
-      const deltaEl = document.querySelector(".follow-compare + .field + p");
+      const deltaEl = document.querySelector("[data-follow-delta]");
       if (deltaEl) {
-        const delta = state.followUp.before - Number(e.target.value);
-        deltaEl.textContent =
-          delta > 0
-            ? `相较调节前：下降 ${delta} 分`
-            : delta < 0
-              ? `相较调节前：上升 ${Math.abs(delta)} 分`
-              : "相较调节前：持平";
-        deltaEl.className = delta > 0 ? "delta-good" : "delta-neutral";
+        const feedback = describeIntensityDelta(
+          state.followUp.moodId,
+          state.followUp.before,
+          e.target.value
+        );
+        deltaEl.textContent = feedback.line;
+        deltaEl.className = feedback.cls;
         deltaEl.style.textAlign = "center";
         deltaEl.style.margin = "8px 0 16px";
       }
@@ -2359,13 +2393,6 @@ function bind() {
   if (note) {
     note.addEventListener("input", (e) => {
       state.draft.note = e.target.value;
-    });
-  }
-  const nextTip = document.querySelector("[data-next-tip]");
-  if (nextTip) {
-    nextTip.addEventListener("click", () => {
-      state.recordTipIndex += 1;
-      render();
     });
   }
   document.querySelectorAll("[data-goods-input]").forEach((input) => {
@@ -2379,14 +2406,6 @@ function bind() {
   });
   const saveGoods = document.querySelector("[data-save-goods]");
   if (saveGoods) saveGoods.addEventListener("click", saveTodayGoods);
-  const tryTip = document.querySelector("[data-try-tip]");
-  if (tryTip) {
-    tryTip.addEventListener("click", () => {
-      const tips = careFor(state.draft.moodId);
-      const tip = tips[((state.recordTipIndex % tips.length) + tips.length) % tips.length];
-      openFollowUp(tip.title);
-    });
-  }
   const save = document.querySelector("[data-save]");
   if (save) save.addEventListener("click", saveDraft);
   const saveFollow = document.querySelector("[data-save-followup]");

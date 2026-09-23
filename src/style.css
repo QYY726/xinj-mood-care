@@ -392,16 +392,42 @@ button { cursor: pointer; border: none; background: none; }
   border-color: rgba(47,111,94,0.45);
   box-shadow: 0 0 0 3px rgba(47,111,94,0.12);
 }
-.record-layout { align-items: start; }
-.record-side { display: grid; gap: 14px; }
-.record-tip h3 { font-family: var(--font-display); font-size: 1.2rem; margin: 8px 0 6px; }
-.record-tip p { color: var(--ink-soft); font-size: 0.92rem; line-height: 1.55; }
-.record-tip-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
-.record-tip-head .tip-swap { padding: 4px 10px; font-size: 0.82rem; }
-.tip-meta { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 2px; font-size: 0.78rem; color: var(--ink-soft); }
-.tip-meta span { padding: 2px 8px; border-radius: 999px; background: rgba(47,111,94,0.08); }
+.record-layout { align-items: stretch; }
+.record-main,
+.record-side-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  height: 100%;
+}
+.record-main .field-grow { flex: 1; display: flex; flex-direction: column; }
+.record-main .field-grow textarea { flex: 1; min-height: 110px; }
+.record-side-card { justify-content: space-between; gap: 18px; }
+.record-side-top h3,
+.record-latest-block h3 {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  margin-bottom: 8px;
+}
+.record-latest-block {
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  margin-top: auto;
+}
+.field-hint {
+  margin-left: 6px;
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: var(--ink-soft);
+}
+.field-note {
+  margin-top: 8px;
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+  line-height: 1.45;
+}
 .goods-box { display: grid; gap: 10px; margin: 10px 0 4px; }
-.goods-progress { font-size: 0.85rem; color: var(--ink-soft); }
+.goods-progress { font-size: 0.85rem; color: var(--ink-soft); margin-bottom: 4px; }
 .goods-progress strong { color: var(--accent, #2f6f5e); font-family: var(--font-display); }
 .goods-item { display: grid; gap: 6px; font-size: 0.82rem; color: var(--ink-soft); }
 .goods-item input {
