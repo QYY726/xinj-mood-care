@@ -13,6 +13,50 @@ const MOODS = [
   { id: "grateful", name: "感恩", emoji: "🍃", score: 5 },
 ];
 
+/** 周报分享卡片主题：随主导情绪切换配色与装饰 */
+const CARD_THEMES = {
+  happy: {
+    bg0: "#FFF8EC", bg1: "#FFD9A0", accent: "#E08A1E", ink: "#4A2E0C", soft: "#9A6840",
+    panel: "rgba(255,255,255,0.55)", tag: "暖光时刻", motif: "sun", tip: "把开心轻轻留住",
+  },
+  calm: {
+    bg0: "#EAF6F1", bg1: "#B7DCCE", accent: "#2F6F5E", ink: "#1A2E28", soft: "#4A635A",
+    panel: "rgba(255,255,255,0.55)", tag: "静水深流", motif: "leaf", tip: "稳住呼吸，慢慢来",
+  },
+  anxious: {
+    bg0: "#EAF3FA", bg1: "#A9C8E0", accent: "#3D6F99", ink: "#1C3145", soft: "#5B7C99",
+    panel: "rgba(255,255,255,0.5)", tag: "潮汐安顿", motif: "wave", tip: "焦虑可以被看见，也可以被放下",
+  },
+  tired: {
+    bg0: "#EEF0F8", bg1: "#B8BDD8", accent: "#5A6494", ink: "#24283B", soft: "#6B7190",
+    panel: "rgba(255,255,255,0.5)", tag: "月下歇息", motif: "moon", tip: "允许自己慢一点、歇一会",
+  },
+  sad: {
+    bg0: "#EEF2F6", bg1: "#B7C5D4", accent: "#5F7A93", ink: "#243040", soft: "#6A7F93",
+    panel: "rgba(255,255,255,0.5)", tag: "细雨同行", motif: "rain", tip: "低落时，温柔也是一种力量",
+  },
+  angry: {
+    bg0: "#FFF1EC", bg1: "#F0B5A0", accent: "#C45A3A", ink: "#4A2218", soft: "#A05A45",
+    panel: "rgba(255,255,255,0.5)", tag: "余烬冷却", motif: "ember", tip: "先命名情绪，再决定行动",
+  },
+  lonely: {
+    bg0: "#F7F0E8", bg1: "#D8BFA6", accent: "#A06B45", ink: "#3D2A1C", soft: "#8A6A52",
+    panel: "rgba(255,255,255,0.5)", tag: "秋叶独行", motif: "leaf", tip: "孤独也可以被温柔陪伴",
+  },
+  hopeful: {
+    bg0: "#F0F8EC", bg1: "#BDDDB0", accent: "#4F8A3C", ink: "#243820", soft: "#5F7A52",
+    panel: "rgba(255,255,255,0.55)", tag: "新芽向光", motif: "sprout", tip: "期待本身，就是一种能量",
+  },
+  stressed: {
+    bg0: "#F3F1FF", bg1: "#C7C0E8", accent: "#5B4F9A", ink: "#2A2545", soft: "#6E6790",
+    panel: "rgba(255,255,255,0.5)", tag: "风暴暂歇", motif: "bolt", tip: "把压力拆成可迈出的一小步",
+  },
+  grateful: {
+    bg0: "#EEF7F0", bg1: "#B5D9BF", accent: "#3D8B5E", ink: "#1E3528", soft: "#567A62",
+    panel: "rgba(255,255,255,0.55)", tag: "叶落有声", motif: "leaf", tip: "感恩让平凡的日子发光",
+  },
+};
+
 const TRIGGERS = [
   "学业 deadline", "职场会议", "人际关系", "睡眠不足", "社交比较",
   "家庭关系", "身体状态", "财务压力", "自我苛责", "突发变化",
@@ -521,6 +565,325 @@ function exportTXT() {
   showToast("已导出 TXT 文件");
 }
 
+function wrapText(ctx, text, x, y, maxWidth, lineHeight, maxLines = 4) {
+  const chars = String(text || "").split("");
+  let line = "";
+  let lines = 0;
+  for (let i = 0; i < chars.length; i++) {
+    const test = line + chars[i];
+    if (ctx.measureText(test).width > maxWidth && line) {
+      ctx.fillText(line, x, y);
+      line = chars[i];
+      y += lineHeight;
+      lines += 1;
+      if (lines >= maxLines - 1) {
+        let rest = chars.slice(i).join("");
+        while (ctx.measureText(rest + "…").width > maxWidth && rest.length > 1) {
+          rest = rest.slice(0, -1);
+        }
+        ctx.fillText(rest + "…", x, y);
+        return y + lineHeight;
+      }
+    } else {
+      line = test;
+    }
+  }
+  if (line) {
+    ctx.fillText(line, x, y);
+    y += lineHeight;
+  }
+  return y;
+}
+
+function drawCardMotif(ctx, motif, accent, w, h) {
+  ctx.save();
+  ctx.globalAlpha = 0.18;
+  ctx.strokeStyle = accent;
+  ctx.fillStyle = accent;
+  if (motif === "sun") {
+    ctx.beginPath();
+    ctx.arc(w - 110, 130, 54, 0, Math.PI * 2);
+    ctx.fill();
+    for (let i = 0; i < 12; i++) {
+      const a = (Math.PI * 2 * i) / 12;
+      ctx.beginPath();
+      ctx.moveTo(w - 110 + Math.cos(a) * 68, 130 + Math.sin(a) * 68);
+      ctx.lineTo(w - 110 + Math.cos(a) * 92, 130 + Math.sin(a) * 92);
+      ctx.lineWidth = 6;
+      ctx.stroke();
+    }
+  } else if (motif === "wave") {
+    ctx.lineWidth = 5;
+    for (let i = 0; i < 4; i++) {
+      ctx.beginPath();
+      const y = h - 180 - i * 28;
+      ctx.moveTo(40, y);
+      for (let x = 40; x < w - 40; x += 20) {
+        ctx.quadraticCurveTo(x + 10, y + (i % 2 ? 16 : -16), x + 20, y);
+      }
+      ctx.stroke();
+    }
+  } else if (motif === "moon") {
+    ctx.beginPath();
+    ctx.arc(w - 120, 140, 58, 0.45, Math.PI * 1.85);
+    ctx.arc(w - 92, 122, 46, Math.PI * 1.55, Math.PI * 0.55, true);
+    ctx.closePath();
+    ctx.fill();
+  } else if (motif === "rain") {
+    ctx.lineWidth = 4;
+    for (let i = 0; i < 18; i++) {
+      const x = 80 + (i % 6) * 70;
+      const y = 90 + Math.floor(i / 6) * 70;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x - 8, y + 28);
+      ctx.stroke();
+    }
+  } else if (motif === "ember") {
+    for (let i = 0; i < 7; i++) {
+      const x = w - 160 + (i % 3) * 36;
+      const y = 100 + Math.floor(i / 3) * 40;
+      ctx.beginPath();
+      ctx.moveTo(x, y + 28);
+      ctx.quadraticCurveTo(x - 12, y + 8, x, y - 10);
+      ctx.quadraticCurveTo(x + 12, y + 8, x, y + 28);
+      ctx.fill();
+    }
+  } else if (motif === "sprout") {
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(w - 120, 210);
+    ctx.quadraticCurveTo(w - 120, 140, w - 90, 110);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.ellipse(w - 150, 130, 28, 16, -0.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(w - 95, 145, 26, 14, 0.5, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (motif === "bolt") {
+    ctx.beginPath();
+    ctx.moveTo(w - 100, 70);
+    ctx.lineTo(w - 145, 145);
+    ctx.lineTo(w - 118, 145);
+    ctx.lineTo(w - 160, 230);
+    ctx.lineTo(w - 95, 140);
+    ctx.lineTo(w - 122, 140);
+    ctx.closePath();
+    ctx.fill();
+  } else {
+    // leaf default
+    ctx.beginPath();
+    ctx.ellipse(w - 120, 140, 42, 22, -0.8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(w - 160, 175, 34, 18, 0.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function buildWeeklyCardCanvas() {
+  const report = buildWeeklyReport();
+  const mood = report.topMood || moodById("calm");
+  const theme = CARD_THEMES[mood.id] || CARD_THEMES.calm;
+  const trend = weekTrend(state.entries);
+  const maxAvg = Math.max(...trend.map((t) => t.avg), 1);
+  const end = new Date();
+  const start = new Date();
+  start.setDate(end.getDate() - 6);
+  const range = `${start.getMonth() + 1}/${start.getDate()} - ${end.getMonth() + 1}/${end.getDate()}`;
+
+  const W = 900;
+  const H = 1350;
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d");
+
+  const grad = ctx.createLinearGradient(0, 0, W, H);
+  grad.addColorStop(0, theme.bg0);
+  grad.addColorStop(1, theme.bg1);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  // soft orbs
+  ctx.fillStyle = theme.accent;
+  ctx.globalAlpha = 0.08;
+  ctx.beginPath();
+  ctx.arc(120, 220, 160, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(W - 80, H - 200, 200, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  drawCardMotif(ctx, theme.motif, theme.accent, W, H);
+
+  // brand
+  ctx.fillStyle = theme.ink;
+  ctx.font = "700 42px 'Fraunces', 'Microsoft YaHei', sans-serif";
+  ctx.fillText("心迹", 64, 90);
+  ctx.fillStyle = theme.soft;
+  ctx.font = "400 22px 'Noto Sans SC', 'Microsoft YaHei', sans-serif";
+  ctx.fillText("情绪周报 · " + range, 64, 128);
+
+  // tag chip
+  ctx.fillStyle = theme.accent;
+  ctx.globalAlpha = 0.15;
+  roundRect(ctx, 64, 160, 180, 42, 21);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = theme.accent;
+  ctx.font = "600 20px 'Noto Sans SC', 'Microsoft YaHei', sans-serif";
+  ctx.fillText(theme.tag, 84, 188);
+
+  // hero emotion
+  ctx.font = "120px 'Segoe UI Emoji', 'Apple Color Emoji', sans-serif";
+  ctx.fillText(mood.emoji, 64, 340);
+  ctx.fillStyle = theme.ink;
+  ctx.font = "700 64px 'Fraunces', 'Microsoft YaHei', sans-serif";
+  ctx.fillText(mood.name, 210, 320);
+  ctx.fillStyle = theme.soft;
+  ctx.font = "400 26px 'Noto Sans SC', 'Microsoft YaHei', sans-serif";
+  ctx.fillText("本周主导情绪", 210, 360);
+
+  // headline panel
+  ctx.fillStyle = theme.panel;
+  roundRect(ctx, 64, 400, W - 128, 160, 28);
+  ctx.fill();
+  ctx.fillStyle = theme.ink;
+  ctx.font = "600 34px 'Fraunces', 'Microsoft YaHei', sans-serif";
+  wrapText(ctx, report.headline, 96, 460, W - 200, 44, 3);
+
+  // stats row
+  const stats = [
+    { label: "本周记录", value: String(report.week.length) },
+    { label: "平均强度", value: report.avgIntensity ? String(report.avgIntensity) : "-" },
+    { label: "主触发点", value: report.topTrigger ? report.topTrigger.name.slice(0, 6) : "-" },
+  ];
+  stats.forEach((s, i) => {
+    const x = 64 + i * 268;
+    ctx.fillStyle = theme.panel;
+    roundRect(ctx, x, 590, 248, 130, 24);
+    ctx.fill();
+    ctx.fillStyle = theme.accent;
+    ctx.font = "700 40px 'Fraunces', 'Microsoft YaHei', sans-serif";
+    ctx.fillText(s.value, x + 24, 660);
+    ctx.fillStyle = theme.soft;
+    ctx.font = "400 20px 'Noto Sans SC', 'Microsoft YaHei', sans-serif";
+    ctx.fillText(s.label, x + 24, 696);
+  });
+
+  // trend
+  ctx.fillStyle = theme.panel;
+  roundRect(ctx, 64, 750, W - 128, 260, 28);
+  ctx.fill();
+  ctx.fillStyle = theme.ink;
+  ctx.font = "600 28px 'Fraunces', 'Microsoft YaHei', sans-serif";
+  ctx.fillText("本周趋势", 96, 800);
+
+  const chartX = 96;
+  const chartY = 820;
+  const chartW = W - 192;
+  const chartH = 140;
+  const barW = chartW / trend.length - 12;
+  trend.forEach((d, i) => {
+    const h = Math.max(10, (d.avg / maxAvg) * chartH);
+    const x = chartX + i * (barW + 12);
+    const y = chartY + chartH - h;
+    const barGrad = ctx.createLinearGradient(x, y, x, y + h);
+    barGrad.addColorStop(0, theme.accent);
+    barGrad.addColorStop(1, theme.bg1);
+    ctx.fillStyle = barGrad;
+    roundRect(ctx, x, y, barW, h, 10);
+    ctx.fill();
+    ctx.fillStyle = theme.soft;
+    ctx.font = "400 16px 'Noto Sans SC', 'Microsoft YaHei', sans-serif";
+    ctx.fillText(d.label.slice(d.label.indexOf("/") + 1), x + barW / 2 - 8, chartY + chartH + 28);
+  });
+
+  // tip + footer
+  ctx.fillStyle = theme.ink;
+  ctx.font = "500 26px 'Noto Sans SC', 'Microsoft YaHei', sans-serif";
+  wrapText(ctx, theme.tip, 64, 1080, W - 128, 36, 2);
+
+  if (report.moodRank.length) {
+    ctx.fillStyle = theme.soft;
+    ctx.font = "400 22px 'Noto Sans SC', 'Microsoft YaHei', sans-serif";
+    const mix = report.moodRank
+      .slice(0, 4)
+      .map((m) => `${m.emoji}${m.name}×${m.count}`)
+      .join("  ");
+    ctx.fillText(mix, 64, 1160);
+  }
+
+  ctx.fillStyle = theme.soft;
+  ctx.font = "400 20px 'Noto Sans SC', 'Microsoft YaHei', sans-serif";
+  ctx.fillText("心迹 · 记录情绪，温柔对待自己", 64, H - 56);
+
+  return { canvas, mood, theme };
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  const radius = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.arcTo(x + w, y, x + w, y + h, radius);
+  ctx.arcTo(x + w, y + h, x, y + h, radius);
+  ctx.arcTo(x, y + h, x, y, radius);
+  ctx.arcTo(x, y, x + w, y, radius);
+  ctx.closePath();
+}
+
+function closeCardModal() {
+  const el = document.querySelector(".card-modal");
+  if (el) el.remove();
+}
+
+function showWeeklyCardModal() {
+  const { canvas, mood, theme } = buildWeeklyCardCanvas();
+  const dataUrl = canvas.toDataURL("image/png");
+  closeCardModal();
+
+  const modal = document.createElement("div");
+  modal.className = "card-modal";
+  modal.innerHTML = `
+    <div class="card-modal-backdrop" data-close-card></div>
+    <div class="card-modal-panel" style="--card-accent:${theme.accent}">
+      <div class="card-modal-head">
+        <div>
+          <strong>周报卡片预览</strong>
+          <p>样式已按主导情绪「${mood.emoji} ${mood.name}」渲染</p>
+        </div>
+        <button class="btn-ghost" data-close-card type="button">关闭</button>
+      </div>
+      <div class="card-modal-preview">
+        <img src="${dataUrl}" alt="情绪周报卡片" />
+      </div>
+      <div class="action-row" style="justify-content:flex-end;">
+        <button class="btn-ghost" data-close-card type="button">取消</button>
+        <button class="btn-primary" data-download-card type="button">下载 PNG</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  modal.querySelectorAll("[data-close-card]").forEach((btn) => {
+    btn.addEventListener("click", closeCardModal);
+  });
+  const dl = modal.querySelector("[data-download-card]");
+  if (dl) {
+    dl.addEventListener("click", () => {
+      const a = document.createElement("a");
+      a.href = dataUrl;
+      a.download = `xinj-week-card-${mood.id}-${Date.now()}.png`;
+      a.click();
+      showToast(`已导出「${mood.name}」主题周报卡片`);
+      closeCardModal();
+    });
+  }
+}
+
 function renderNav() {
   const items = [
     ["home", "首页"],
@@ -781,8 +1144,7 @@ function renderReport() {
           <p>${start.getMonth() + 1}/${start.getDate()} - ${end.getMonth() + 1}/${end.getDate()} · 近 7 天复盘</p>
         </div>
         <div class="action-row">
-          <button class="btn-ghost" data-export-txt>导出 TXT</button>
-          <button class="btn-primary" data-export-json>导出 JSON</button>
+          <button class="btn-primary" data-export-card>导出为卡片</button>
         </div>
       </div>
       <div class="stats stats-4">
@@ -1169,6 +1531,9 @@ function bind() {
   });
   document.querySelectorAll("[data-export-txt]").forEach((btn) => {
     btn.addEventListener("click", exportTXT);
+  });
+  document.querySelectorAll("[data-export-card]").forEach((btn) => {
+    btn.addEventListener("click", showWeeklyCardModal);
   });
   document.querySelectorAll("[data-breathe-mode]").forEach((btn) => {
     btn.addEventListener("click", () => {
