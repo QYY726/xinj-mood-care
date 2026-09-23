@@ -1036,7 +1036,7 @@ function buildWeeklyCardCanvas() {
   const stats = [
     { label: "本周记录", value: String(report.week.length) },
     { label: "平均强度", value: report.avgIntensity ? String(report.avgIntensity) : "-" },
-    { label: "主触发点", value: report.topTrigger ? report.topTrigger.name.slice(0, 6) : "-" },
+    { label: "主触发点", value: report.topTrigger ? report.topTrigger.name : "-" },
   ];
   stats.forEach((s, i) => {
     const x = 64 + i * 268;
@@ -1044,8 +1044,14 @@ function buildWeeklyCardCanvas() {
     roundRect(ctx, x, 590, 248, 130, 24);
     ctx.fill();
     ctx.fillStyle = theme.accent;
-    ctx.font = "700 40px 'Fraunces', 'Microsoft YaHei', sans-serif";
-    ctx.fillText(s.value, x + 24, 660);
+    const valueFont =
+      s.value.length > 8
+        ? "700 26px 'Fraunces', 'Microsoft YaHei', sans-serif"
+        : s.value.length > 5
+          ? "700 32px 'Fraunces', 'Microsoft YaHei', sans-serif"
+          : "700 40px 'Fraunces', 'Microsoft YaHei', sans-serif";
+    ctx.font = valueFont;
+    wrapText(ctx, s.value, x + 24, 650, 200, 30, 2);
     ctx.fillStyle = theme.soft;
     ctx.font = "400 20px 'Noto Sans SC', 'Microsoft YaHei', sans-serif";
     ctx.fillText(s.label, x + 24, 696);
@@ -1468,12 +1474,10 @@ function renderHome() {
         <h2>此刻感觉如何？</h2>
         <p>${m ? `上次你记录了「${m.name}」，强度 ${latest.intensity}/10。` : "点选一个情绪，快速进入记录。"}</p>
         <div class="mood-mini">
-          ${MOODS.slice(0, 5)
-            .map(
-              (mood) =>
-                `<button data-quick="${mood.id}" title="${mood.name}">${mood.emoji}</button>`
-            )
-            .join("")}
+          ${MOODS.map(
+            (mood) =>
+              `<button data-quick="${mood.id}" title="${mood.name}">${mood.emoji}</button>`
+          ).join("")}
         </div>
       </div>
     </section>
@@ -1790,7 +1794,7 @@ function renderReport() {
         <div class="stat"><strong>${report.week.length}</strong><span>本周记录</span></div>
         <div class="stat"><strong>${report.avgIntensity || "-"}</strong><span>平均强度</span></div>
         <div class="stat"><strong>${report.topMood ? report.topMood.emoji + report.topMood.name : "-"}</strong><span>主导情绪</span></div>
-        <div class="stat"><strong>${report.topTrigger ? report.topTrigger.name.slice(0, 6) : "-"}</strong><span>主触发点</span></div>
+        <div class="stat"><strong class="stat-trigger">${report.topTrigger ? report.topTrigger.name : "-"}</strong><span>主触发点</span></div>
       </div>
 
       <div class="grid-2" style="margin-top:14px;">
