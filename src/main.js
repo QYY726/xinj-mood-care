@@ -852,8 +852,26 @@ function dominantMoodFromEntries(entries) {
   return moodById(topId);
 }
 
-function buildDiaryCardCanvas() {
-  const entries = state.entries;
+const DIARY_RANGES = [
+  { id: "7", days: 7, label: "近一周", short: "一周" },
+  { id: "15", days: 15, label: "近半个月", short: "半月" },
+  { id: "30", days: 30, label: "近一个月", short: "一月" },
+];
+
+function diaryRangeById(id) {
+  return DIARY_RANGES.find((r) => r.id === id) || DIARY_RANGES[0];
+}
+
+function formatRangeSpan(days) {
+  const end = new Date();
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - (days - 1));
+  return `${start.getMonth() + 1}/${start.getDate()} - ${end.getMonth() + 1}/${end.getDate()}`;
+}
+
+function buildDiaryCardCanvas(range = DIARY_RANGES[0]) {
+  const entries = entriesInLastDays(range.days);
   const mood = dominantMoodFromEntries(entries);
   const theme = CARD_THEMES[mood.id] || CARD_THEMES.calm;
   const avgIntensity = entries.length
@@ -869,6 +887,7 @@ function buildDiaryCardCanvas() {
     .map(([id, count]) => ({ ...moodById(id), count }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 4);
+  const span = formatRangeSpan(range.days);
 
   const W = 900;
   const H = 1200;
@@ -900,7 +919,7 @@ function buildDiaryCardCanvas() {
   ctx.fillText("心迹", 64, 90);
   ctx.fillStyle = theme.soft;
   ctx.font = "400 22px 'Noto Sans SC', 'Microsoft YaHei', sans-serif";
-  ctx.fillText("情绪日记卡片", 64, 128);
+  ctx.fillText(`情绪日记 · ${range.label} · ${span}`, 64, 128);
 
   ctx.fillStyle = theme.accent;
   ctx.globalAlpha = 0.15;
@@ -918,7 +937,7 @@ function buildDiaryCardCanvas() {
   ctx.fillText(mood.name, 210, 320);
   ctx.fillStyle = theme.soft;
   ctx.font = "400 26px 'Noto Sans SC', 'Microsoft YaHei', sans-serif";
-  ctx.fillText("日记主导情绪", 210, 360);
+  ctx.fillText(`${range.label}主导情绪`, 210, 360);
 
   ctx.fillStyle = theme.panel;
   roundRect(ctx, 64, 400, W - 128, 150, 28);
@@ -928,12 +947,12 @@ function buildDiaryCardCanvas() {
   const quote = latest?.note
     ? `最近一次：${latest.note}`
     : entries.length
-      ? `已留下 ${entries.length} 段情绪足迹，继续温柔记录。`
-      : "还没有日记，从一次小记录开始。";
+      ? `${range.label}留下 ${entries.length} 段情绪足迹，继续温柔记录。`
+      : `${range.label}还没有记录。`;
   wrapText(ctx, quote, 96, 460, W - 200, 40, 3);
 
   const stats = [
-    { label: "累计记录", value: String(entries.length) },
+    { label: "时段记录", value: String(entries.length) },
     { label: "平均强度", value: avgIntensity || "-" },
     { label: "连续签到", value: `${streak}天` },
   ];
@@ -968,7 +987,7 @@ function buildDiaryCardCanvas() {
   } else {
     ctx.fillStyle = theme.soft;
     ctx.font = "400 22px 'Noto Sans SC', 'Microsoft YaHei', sans-serif";
-    ctx.fillText("暂无分布数据", 96, 850);
+    ctx.fillText("该时段暂无分布数据", 96, 850);
   }
 
   ctx.fillStyle = theme.ink;
@@ -979,17 +998,17 @@ function buildDiaryCardCanvas() {
   ctx.font = "400 20px 'Noto Sans SC', 'Microsoft YaHei', sans-serif";
   ctx.fillText("心迹 · 记录情绪，温柔对待自己", 64, H - 56);
 
-  return { canvas, mood, theme };
+  return { canvas, mood, theme, range };
 }
 
-function showMoodCardModal(kind = "week") {
-  const built = kind === "diary" ? buildDiaryCardCanvas() : buildWeeklyCardCanvas();
+function showMoodCardModal(kind = "week", range = DIARY_RANGES[0]) {
+  const built = kind === "diary" ? buildDiaryCardCanvas(range) : buildWeeklyCardCanvas();
   const { canvas, mood, theme } = built;
   const dataUrl = canvas.toDataURL("image/png");
-  const title = kind === "diary" ? "日记卡片预览" : "周报卡片预览";
+  const title = kind === "diary" ? `日记卡片预览 · ${range.label}` : "周报卡片预览";
   const alt = kind === "diary" ? "情绪日记卡片" : "情绪周报卡片";
-  const filePrefix = kind === "diary" ? "xinj-diary-card" : "xinj-week-card";
-  const toastLabel = kind === "diary" ? "日记卡片" : "周报卡片";
+  const filePrefix = kind === "diary" ? `xinj-diary-card-${range.id}d` : "xinj-week-card";
+  const toastLabel = kind === "diary" ? `${range.label}日记卡片` : "周报卡片";
   closeCardModal();
   document.body.style.overflow = "hidden";
 
@@ -1009,6 +1028,7 @@ function showMoodCardModal(kind = "week") {
         <img src="${dataUrl}" alt="${alt}" />
       </div>
       <div class="action-row" style="justify-content:flex-end;">
+        ${kind === "diary" ? `<button class="btn-ghost" data-back-diary-range type="button">重选时段</button>` : ""}
         <button class="btn-ghost" data-close-card type="button">取消</button>
         <button class="btn-primary" data-download-card type="button">下载 PNG</button>
       </div>
@@ -1018,6 +1038,13 @@ function showMoodCardModal(kind = "week") {
   modal.querySelectorAll("[data-close-card]").forEach((btn) => {
     btn.addEventListener("click", closeCardModal);
   });
+  const backBtn = modal.querySelector("[data-back-diary-range]");
+  if (backBtn) {
+    backBtn.addEventListener("click", () => {
+      closeCardModal();
+      showDiaryRangePicker();
+    });
+  }
   const dl = modal.querySelector("[data-download-card]");
   if (dl) {
     dl.addEventListener("click", () => {
@@ -1035,12 +1062,61 @@ function showWeeklyCardModal() {
   showMoodCardModal("week");
 }
 
-function showDiaryCardModal() {
+function showDiaryRangePicker() {
   if (!state.entries.length) {
     showToast("还没有日记，先去记录一条吧");
     return;
   }
-  showMoodCardModal("diary");
+  closeCardModal();
+  document.body.style.overflow = "hidden";
+
+  const modal = document.createElement("div");
+  modal.className = "card-modal";
+  modal.innerHTML = `
+    <div class="card-modal-backdrop" data-close-card></div>
+    <div class="card-modal-panel range-picker-panel">
+      <div class="card-modal-head">
+        <div>
+          <strong>导出为卡片</strong>
+          <p>选择要汇总的时间段</p>
+        </div>
+        <button class="btn-ghost" data-close-card type="button">关闭</button>
+      </div>
+      <div class="range-options">
+        ${DIARY_RANGES.map((r) => {
+          const count = entriesInLastDays(r.days).length;
+          const span = formatRangeSpan(r.days);
+          return `
+            <button class="range-option" type="button" data-diary-range="${r.id}">
+              <div>
+                <strong>导出${r.label}</strong>
+                <span>${span}</span>
+              </div>
+              <em>${count} 条</em>
+            </button>`;
+        }).join("")}
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  modal.querySelectorAll("[data-close-card]").forEach((btn) => {
+    btn.addEventListener("click", closeCardModal);
+  });
+  modal.querySelectorAll("[data-diary-range]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const range = diaryRangeById(btn.getAttribute("data-diary-range"));
+      const count = entriesInLastDays(range.days).length;
+      if (!count) {
+        showToast(`${range.label}还没有记录`);
+        return;
+      }
+      showMoodCardModal("diary", range);
+    });
+  });
+}
+
+function showDiaryCardModal() {
+  showDiaryRangePicker();
 }
 
 function renderNav() {
