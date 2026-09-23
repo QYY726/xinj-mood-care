@@ -94,9 +94,29 @@ const CARE = {
     { type: "运动", title: "公共空间漫步", desc: "去公园或咖啡馆走一圈，感受人群的背景温度。", mins: 15 },
   ],
   default: [
-    { type: "冥想", title: "今日三件好事", desc: "写下三件微小的好事，训练大脑看见资源。", mins: 5 },
+    { type: "冥想", title: "今日三件好事", desc: "写下三件微小的好事，训练大脑看见资源。", mins: 5, exercise: "goods" },
     { type: "音乐", title: "清晨清透歌单", desc: "轻快但不刺激的节奏，帮你稳住当下状态。", mins: 10 },
     { type: "运动", title: "伸展+深呼吸", desc: "站立伸展配合深呼吸，延续这份好状态。", mins: 6, breathe: "calm" },
+  ],
+  calm: [
+    { type: "冥想", title: "今日三件好事", desc: "把平静里看见的微小好事写下来，让它多停留一会。", mins: 5, exercise: "goods" },
+    { type: "运动", title: "伸展+深呼吸", desc: "站立伸展配合深呼吸，延续这份好状态。", mins: 6, breathe: "calm" },
+    { type: "音乐", title: "清晨清透歌单", desc: "轻快但不刺激的节奏，帮你稳住当下状态。", mins: 10 },
+  ],
+  happy: [
+    { type: "冥想", title: "今日三件好事", desc: "趁开心还在，记下三件让你微笑的小事。", mins: 5, exercise: "goods" },
+    { type: "音乐", title: "把快乐录下来", desc: "听一首会让你想晃身体的歌，允许自己多开心一会。", mins: 8 },
+    { type: "运动", title: "伸展+深呼吸", desc: "站立伸展配合深呼吸，把好状态留在身体里。", mins: 6, breathe: "calm" },
+  ],
+  hopeful: [
+    { type: "冥想", title: "今日三件好事", desc: "期待之外，也看见已经发生的三件好事。", mins: 5, exercise: "goods" },
+    { type: "运动", title: "伸展+深呼吸", desc: "用身体稳住这份向前的力气。", mins: 6, breathe: "calm" },
+    { type: "音乐", title: "清晨清透歌单", desc: "轻快但不刺激的节奏，陪你把期待落地成一小步。", mins: 10 },
+  ],
+  grateful: [
+    { type: "冥想", title: "今日三件好事", desc: "感恩适合写下来：三件微小的、真实的好事。", mins: 5, exercise: "goods" },
+    { type: "音乐", title: "温暖民谣", desc: "听一首熟悉而温柔的歌，让感激再回响一遍。", mins: 6 },
+    { type: "运动", title: "晒太阳散步", desc: "走到有光的地方慢慢走，把这份暖意带走。", mins: 12 },
   ],
 };
 
@@ -135,9 +155,16 @@ const BREATHE_MODES = {
 
 const STORAGE_KEY = "moodcare-entries-v1";
 const TRIGGERS_KEY = "moodcare-triggers-v1";
+const GOODS_KEY = "moodcare-goods-v1";
 const USERS_KEY = "moodcare-users-v1";
 const SESSION_KEY = "moodcare-session-v1";
 const GUEST_KEY = "moodcare-guest-v1";
+
+const GOODS_PROMPTS = [
+  "一件小事就好，比如今天天气不错",
+  "有人对你温柔，或你对别人温柔了吗？",
+  "你自己做对了什么，哪怕很小？",
+];
 
 const seedEntries = () => {
   const now = Date.now();
@@ -271,6 +298,66 @@ function saveCustomTriggers() {
   localStorage.setItem(scopeKey(TRIGGERS_KEY, scope), JSON.stringify(state.customTriggers));
 }
 
+function loadGoodsMap(scope) {
+  const key = scopeKey(GOODS_KEY, scope);
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return {};
+    const map = JSON.parse(raw);
+    return map && typeof map === "object" ? map : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveGoodsMap(map) {
+  const scope = state.user?.id || "guest";
+  localStorage.setItem(scopeKey(GOODS_KEY, scope), JSON.stringify(map));
+}
+
+function todayGoodsKey() {
+  return dayKey(Date.now());
+}
+
+function loadTodayGoodsDraft(scope) {
+  const map = loadGoodsMap(scope);
+  const saved = map[todayGoodsKey()];
+  if (Array.isArray(saved) && saved.length) {
+    return [0, 1, 2].map((i) => String(saved[i] || ""));
+  }
+  return ["", "", ""];
+}
+
+function countFilledGoods(list) {
+  return (list || []).filter((g) => String(g || "").trim()).length;
+}
+
+function saveTodayGoods() {
+  const items = state.goodsDraft.map((g) => String(g || "").trim());
+  const filled = items.filter(Boolean);
+  if (!filled.length) return showToast("先写下一件小事也好");
+  const map = loadGoodsMap(state.user?.id || "guest");
+  map[todayGoodsKey()] = items;
+  saveGoodsMap(map);
+  state.goodsDraft = items;
+  showToast(filled.length >= 3 ? "三件好事已收好，今天也有光" : `已记下 ${filled.length} 件好事`);
+  render();
+}
+
+function goodsInRange(days = 7) {
+  const map = loadGoodsMap(state.user?.id || "guest");
+  const now = Date.now();
+  const out = [];
+  for (let i = 0; i < days; i++) {
+    const key = dayKey(now - i * 86400000);
+    const items = map[key];
+    if (!Array.isArray(items)) continue;
+    const filled = items.map((g) => String(g || "").trim()).filter(Boolean);
+    if (filled.length) out.push({ day: key, items: filled });
+  }
+  return out;
+}
+
 function allTriggers() {
   const extras = state.customTriggers.filter((t) => !TRIGGERS.includes(t));
   return [...TRIGGERS, ...extras];
@@ -279,6 +366,14 @@ function allTriggers() {
 function dayKey(ts) {
   const d = new Date(ts);
   return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+
+function escapeAttr(str) {
+  return String(str || "")
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 function checkedInToday() {
@@ -352,6 +447,8 @@ const state = {
   entries: loadEntriesFor(bootScope),
   customTriggers: loadTriggersFor(bootScope),
   draft: { moodId: "calm", intensity: 5, triggers: [], note: "", customInput: "" },
+  goodsDraft: loadTodayGoodsDraft(bootScope),
+  recordTipIndex: 0,
   toast: "",
   followUp: null,
   calendarCursor: {
@@ -385,6 +482,7 @@ function reloadUserData() {
   const scope = state.user?.id || "guest";
   state.entries = loadEntriesFor(scope);
   state.customTriggers = loadTriggersFor(scope);
+  state.goodsDraft = loadTodayGoodsDraft(scope);
   state.draft = { moodId: "calm", intensity: 5, triggers: [], note: "", customInput: "" };
 }
 
@@ -1522,7 +1620,11 @@ function renderRecord() {
   const d = state.draft;
   const triggers = allTriggers();
   const selected = moodById(d.moodId);
-  const tip = (CARE[d.moodId] || CARE.default)[0];
+  const tips = careFor(d.moodId);
+  const tipIndex = ((state.recordTipIndex % tips.length) + tips.length) % tips.length;
+  const tip = tips[tipIndex];
+  const goodsFilled = countFilledGoods(state.goodsDraft);
+  const weekGoods = goodsInRange(7).reduce((n, day) => n + day.items.length, 0);
   const latest = state.entries[0];
   const latestMood = latest ? moodById(latest.moodId) : null;
   const latestTime = latest
@@ -1533,6 +1635,27 @@ function renderRecord() {
         minute: "2-digit",
       })
     : "";
+
+  const tipAction = tip.breathe
+    ? `<button class="btn-primary" data-start-breathe="${tip.breathe}">马上跟练呼吸</button>`
+    : tip.exercise === "goods"
+      ? ""
+      : `<button class="btn-primary" data-try-tip>去做这个 · 约 ${tip.mins} 分钟</button>`;
+
+  const goodsBlock =
+    tip.exercise === "goods"
+      ? `<div class="goods-box">
+          <div class="goods-progress">今日已写 <strong>${goodsFilled}/3</strong>${weekGoods ? ` · 近7天共 ${weekGoods} 件` : ""}</div>
+          ${GOODS_PROMPTS.map(
+            (prompt, i) => `
+            <label class="goods-item">
+              <span>${i + 1}. ${prompt}</span>
+              <input data-goods-input="${i}" type="text" maxlength="60" placeholder="写下一件就好" value="${escapeAttr(state.goodsDraft[i] || "")}" />
+            </label>`
+          ).join("")}
+          <button class="btn-primary" data-save-goods type="button">${goodsFilled >= 3 ? "更新三件好事" : "收好这些好事"}</button>
+        </div>`
+      : `<p>${tip.desc}</p>`;
 
   return `
     <section class="section">
@@ -1588,12 +1711,17 @@ function renderRecord() {
         </div>
         <aside class="record-side">
           <div class="card record-tip">
-            <span class="tag">写完可试</span>
-            <h3>${selected.emoji} ${tip.title}</h3>
-            <p>${tip.desc}</p>
+            <div class="record-tip-head">
+              <span class="tag">写完可试 · ${selected.emoji} ${selected.name}</span>
+              <button class="btn-ghost tip-swap" data-next-tip type="button">换一个</button>
+            </div>
+            <div class="tip-meta"><span>${tip.type}</span><span>约 ${tip.mins} 分钟</span><span>${tipIndex + 1}/${tips.length}</span></div>
+            <h3>${tip.title}</h3>
+            ${goodsBlock}
             <div class="record-side-actions">
-              <button class="btn-soft" data-nav="breathe">先呼吸一轮</button>
-              <button class="btn-ghost" data-nav="care">看关怀建议</button>
+              ${tipAction}
+              ${tip.breathe ? "" : `<button class="btn-soft" data-nav="breathe">先呼吸一轮</button>`}
+              <button class="btn-ghost" data-nav="care">全部关怀建议</button>
             </div>
           </div>
           <div class="card">
@@ -2147,12 +2275,14 @@ function bind() {
   document.querySelectorAll("[data-quick]").forEach((btn) => {
     btn.addEventListener("click", () => {
       state.draft.moodId = btn.getAttribute("data-quick");
+      state.recordTipIndex = 0;
       setView("record");
     });
   });
   document.querySelectorAll("[data-mood]").forEach((btn) => {
     btn.addEventListener("click", () => {
       state.draft.moodId = btn.getAttribute("data-mood");
+      state.recordTipIndex = 0;
       render();
     });
   });
@@ -2229,6 +2359,32 @@ function bind() {
   if (note) {
     note.addEventListener("input", (e) => {
       state.draft.note = e.target.value;
+    });
+  }
+  const nextTip = document.querySelector("[data-next-tip]");
+  if (nextTip) {
+    nextTip.addEventListener("click", () => {
+      state.recordTipIndex += 1;
+      render();
+    });
+  }
+  document.querySelectorAll("[data-goods-input]").forEach((input) => {
+    input.addEventListener("input", (e) => {
+      const idx = Number(e.target.getAttribute("data-goods-input"));
+      if (Number.isNaN(idx)) return;
+      state.goodsDraft[idx] = e.target.value;
+      const progress = document.querySelector(".goods-progress strong");
+      if (progress) progress.textContent = `${countFilledGoods(state.goodsDraft)}/3`;
+    });
+  });
+  const saveGoods = document.querySelector("[data-save-goods]");
+  if (saveGoods) saveGoods.addEventListener("click", saveTodayGoods);
+  const tryTip = document.querySelector("[data-try-tip]");
+  if (tryTip) {
+    tryTip.addEventListener("click", () => {
+      const tips = careFor(state.draft.moodId);
+      const tip = tips[((state.recordTipIndex % tips.length) + tips.length) % tips.length];
+      openFollowUp(tip.title);
     });
   }
   const save = document.querySelector("[data-save]");
