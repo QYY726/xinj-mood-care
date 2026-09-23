@@ -841,9 +841,154 @@ function closeCardModal() {
   if (el) el.remove();
 }
 
-function showWeeklyCardModal() {
-  const { canvas, mood, theme } = buildWeeklyCardCanvas();
+function dominantMoodFromEntries(entries) {
+  if (!entries.length) return moodById("calm");
+  const count = {};
+  entries.forEach((e) => {
+    count[e.moodId] = (count[e.moodId] || 0) + 1;
+  });
+  const topId = Object.entries(count).sort((a, b) => b[1] - a[1])[0][0];
+  return moodById(topId);
+}
+
+function buildDiaryCardCanvas() {
+  const entries = state.entries;
+  const mood = dominantMoodFromEntries(entries);
+  const theme = CARD_THEMES[mood.id] || CARD_THEMES.calm;
+  const avgIntensity = entries.length
+    ? +(entries.reduce((s, e) => s + e.intensity, 0) / entries.length).toFixed(1)
+    : 0;
+  const streak = calcStreak();
+  const latest = entries[0];
+  const moodRank = {};
+  entries.forEach((e) => {
+    moodRank[e.moodId] = (moodRank[e.moodId] || 0) + 1;
+  });
+  const mix = Object.entries(moodRank)
+    .map(([id, count]) => ({ ...moodById(id), count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 4);
+
+  const W = 900;
+  const H = 1200;
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d");
+
+  const grad = ctx.createLinearGradient(0, 0, W, H);
+  grad.addColorStop(0, theme.bg0);
+  grad.addColorStop(1, theme.bg1);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.fillStyle = theme.accent;
+  ctx.globalAlpha = 0.08;
+  ctx.beginPath();
+  ctx.arc(140, 200, 150, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(W - 60, H - 160, 180, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  drawCardMotif(ctx, theme.motif, theme.accent, W, H);
+
+  ctx.fillStyle = theme.ink;
+  ctx.font = "700 42px 'Fraunces', 'Microsoft YaHei', sans-serif";
+  ctx.fillText("心迹", 64, 90);
+  ctx.fillStyle = theme.soft;
+  ctx.font = "400 22px 'Noto Sans SC', 'Microsoft YaHei', sans-serif";
+  ctx.fillText("情绪日记卡片", 64, 128);
+
+  ctx.fillStyle = theme.accent;
+  ctx.globalAlpha = 0.15;
+  roundRect(ctx, 64, 160, 180, 42, 21);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = theme.accent;
+  ctx.font = "600 20px 'Noto Sans SC', 'Microsoft YaHei', sans-serif";
+  ctx.fillText(theme.tag, 84, 188);
+
+  ctx.font = "120px 'Segoe UI Emoji', 'Apple Color Emoji', sans-serif";
+  ctx.fillText(mood.emoji, 64, 340);
+  ctx.fillStyle = theme.ink;
+  ctx.font = "700 64px 'Fraunces', 'Microsoft YaHei', sans-serif";
+  ctx.fillText(mood.name, 210, 320);
+  ctx.fillStyle = theme.soft;
+  ctx.font = "400 26px 'Noto Sans SC', 'Microsoft YaHei', sans-serif";
+  ctx.fillText("日记主导情绪", 210, 360);
+
+  ctx.fillStyle = theme.panel;
+  roundRect(ctx, 64, 400, W - 128, 150, 28);
+  ctx.fill();
+  ctx.fillStyle = theme.ink;
+  ctx.font = "600 30px 'Fraunces', 'Microsoft YaHei', sans-serif";
+  const quote = latest?.note
+    ? `最近一次：${latest.note}`
+    : entries.length
+      ? `已留下 ${entries.length} 段情绪足迹，继续温柔记录。`
+      : "还没有日记，从一次小记录开始。";
+  wrapText(ctx, quote, 96, 460, W - 200, 40, 3);
+
+  const stats = [
+    { label: "累计记录", value: String(entries.length) },
+    { label: "平均强度", value: avgIntensity || "-" },
+    { label: "连续签到", value: `${streak}天` },
+  ];
+  stats.forEach((s, i) => {
+    const x = 64 + i * 268;
+    ctx.fillStyle = theme.panel;
+    roundRect(ctx, x, 580, 248, 130, 24);
+    ctx.fill();
+    ctx.fillStyle = theme.accent;
+    ctx.font = "700 40px 'Fraunces', 'Microsoft YaHei', sans-serif";
+    ctx.fillText(String(s.value), x + 24, 650);
+    ctx.fillStyle = theme.soft;
+    ctx.font = "400 20px 'Noto Sans SC', 'Microsoft YaHei', sans-serif";
+    ctx.fillText(s.label, x + 24, 686);
+  });
+
+  ctx.fillStyle = theme.panel;
+  roundRect(ctx, 64, 740, W - 128, 220, 28);
+  ctx.fill();
+  ctx.fillStyle = theme.ink;
+  ctx.font = "600 28px 'Fraunces', 'Microsoft YaHei', sans-serif";
+  ctx.fillText("情绪分布", 96, 790);
+  if (mix.length) {
+    mix.forEach((m, i) => {
+      const y = 830 + i * 32;
+      ctx.font = "400 24px 'Noto Sans SC', 'Microsoft YaHei', sans-serif";
+      ctx.fillStyle = theme.ink;
+      ctx.fillText(`${m.emoji}  ${m.name}`, 96, y);
+      ctx.fillStyle = theme.soft;
+      ctx.fillText(`×${m.count}`, W - 140, y);
+    });
+  } else {
+    ctx.fillStyle = theme.soft;
+    ctx.font = "400 22px 'Noto Sans SC', 'Microsoft YaHei', sans-serif";
+    ctx.fillText("暂无分布数据", 96, 850);
+  }
+
+  ctx.fillStyle = theme.ink;
+  ctx.font = "500 26px 'Noto Sans SC', 'Microsoft YaHei', sans-serif";
+  wrapText(ctx, theme.tip, 64, 1020, W - 128, 36, 2);
+
+  ctx.fillStyle = theme.soft;
+  ctx.font = "400 20px 'Noto Sans SC', 'Microsoft YaHei', sans-serif";
+  ctx.fillText("心迹 · 记录情绪，温柔对待自己", 64, H - 56);
+
+  return { canvas, mood, theme };
+}
+
+function showMoodCardModal(kind = "week") {
+  const built = kind === "diary" ? buildDiaryCardCanvas() : buildWeeklyCardCanvas();
+  const { canvas, mood, theme } = built;
   const dataUrl = canvas.toDataURL("image/png");
+  const title = kind === "diary" ? "日记卡片预览" : "周报卡片预览";
+  const alt = kind === "diary" ? "情绪日记卡片" : "情绪周报卡片";
+  const filePrefix = kind === "diary" ? "xinj-diary-card" : "xinj-week-card";
+  const toastLabel = kind === "diary" ? "日记卡片" : "周报卡片";
   closeCardModal();
 
   const modal = document.createElement("div");
@@ -853,13 +998,13 @@ function showWeeklyCardModal() {
     <div class="card-modal-panel" style="--card-accent:${theme.accent}">
       <div class="card-modal-head">
         <div>
-          <strong>周报卡片预览</strong>
+          <strong>${title}</strong>
           <p>样式已按主导情绪「${mood.emoji} ${mood.name}」渲染</p>
         </div>
         <button class="btn-ghost" data-close-card type="button">关闭</button>
       </div>
       <div class="card-modal-preview">
-        <img src="${dataUrl}" alt="情绪周报卡片" />
+        <img src="${dataUrl}" alt="${alt}" />
       </div>
       <div class="action-row" style="justify-content:flex-end;">
         <button class="btn-ghost" data-close-card type="button">取消</button>
@@ -876,12 +1021,24 @@ function showWeeklyCardModal() {
     dl.addEventListener("click", () => {
       const a = document.createElement("a");
       a.href = dataUrl;
-      a.download = `xinj-week-card-${mood.id}-${Date.now()}.png`;
+      a.download = `${filePrefix}-${mood.id}-${Date.now()}.png`;
       a.click();
-      showToast(`已导出「${mood.name}」主题周报卡片`);
+      showToast(`已导出「${mood.name}」主题${toastLabel}`);
       closeCardModal();
     });
   }
+}
+
+function showWeeklyCardModal() {
+  showMoodCardModal("week");
+}
+
+function showDiaryCardModal() {
+  if (!state.entries.length) {
+    showToast("还没有日记，先去记录一条吧");
+    return;
+  }
+  showMoodCardModal("diary");
 }
 
 function renderNav() {
@@ -1371,8 +1528,7 @@ function renderDiary() {
           <p>你的私密记录保存在本机浏览器中</p>
         </div>
         <div class="action-row">
-          <button class="btn-ghost" data-export-txt>导出 TXT</button>
-          <button class="btn-ghost" data-export-json>导出 JSON</button>
+          <button class="btn-ghost" data-export-diary-card>导出为卡片</button>
           <button class="btn-primary" data-nav="record">新记录</button>
         </div>
       </div>
@@ -1534,6 +1690,9 @@ function bind() {
   });
   document.querySelectorAll("[data-export-card]").forEach((btn) => {
     btn.addEventListener("click", showWeeklyCardModal);
+  });
+  document.querySelectorAll("[data-export-diary-card]").forEach((btn) => {
+    btn.addEventListener("click", showDiaryCardModal);
   });
   document.querySelectorAll("[data-breathe-mode]").forEach((btn) => {
     btn.addEventListener("click", () => {
