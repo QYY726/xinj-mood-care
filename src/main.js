@@ -1478,7 +1478,7 @@ function renderRecord() {
       <div class="section-head">
         <div>
           <h2>记录这一刻</h2>
-          <p>诚实就好，不评判对错 · 连续签到 ${calcStreak()} 天</p>
+          <p>真实就好，没有对错 · 连续签到 ${calcStreak()} 天</p>
         </div>
       </div>
       <div class="grid-2">
