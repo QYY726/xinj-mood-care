@@ -1521,6 +1521,19 @@ function renderHome() {
 function renderRecord() {
   const d = state.draft;
   const triggers = allTriggers();
+  const selected = moodById(d.moodId);
+  const tip = (CARE[d.moodId] || CARE.default)[0];
+  const latest = state.entries[0];
+  const latestMood = latest ? moodById(latest.moodId) : null;
+  const latestTime = latest
+    ? new Date(latest.createdAt).toLocaleString("zh-CN", {
+        month: "numeric",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "";
+
   return `
     <section class="section">
       <div class="section-head">
@@ -1529,7 +1542,7 @@ function renderRecord() {
           <p>真实就好，没有对错 · 连续签到 ${calcStreak()} 天</p>
         </div>
       </div>
-      <div class="grid-2">
+      <div class="grid-2 record-layout">
         <div class="card">
           <div class="field">
             <label>此刻情绪</label>
@@ -1573,15 +1586,30 @@ function renderRecord() {
           </div>
           <button class="btn-primary" data-save>保存并获取关怀建议</button>
         </div>
-        <div class="card">
-          <h3 style="font-family:var(--font-display);margin-bottom:8px;">为什么这样设计？</h3>
-          <p style="color:var(--ink-soft);margin-bottom:12px;">年轻人不是缺少“应该调节”的道理，而是缺少一个足够轻、足够私密、马上能做的入口。</p>
-          <div class="insight-list">
-            <div class="insight"><div>①</div><div><strong>低门槛</strong><div class="bar"><span style="width:90%"></span></div></div><div>30秒</div></div>
-            <div class="insight"><div>②</div><div><strong>可复盘</strong><div class="bar"><span style="width:75%"></span></div></div><div>触发因素</div></div>
-            <div class="insight"><div>③</div><div><strong>可行动</strong><div class="bar"><span style="width:85%"></span></div></div><div>自助方案</div></div>
+        <aside class="record-side">
+          <div class="card record-tip">
+            <span class="tag">写完可试</span>
+            <h3>${selected.emoji} ${tip.title}</h3>
+            <p>${tip.desc}</p>
+            <div class="record-side-actions">
+              <button class="btn-soft" data-nav="breathe">先呼吸一轮</button>
+              <button class="btn-ghost" data-nav="care">看关怀建议</button>
+            </div>
           </div>
-        </div>
+          <div class="card">
+            <h3 style="font-family:var(--font-display);margin-bottom:8px;">最近一条</h3>
+            ${
+              latest
+                ? `<p class="record-latest">
+                    <strong>${latestMood.emoji} ${latestMood.name}</strong>
+                    <span>强度 ${latest.intensity}/10 · ${latestTime}</span>
+                    ${latest.note ? `<em>${latest.note}</em>` : `<em style="opacity:.7">当时没有写文字</em>`}
+                  </p>
+                  <button class="btn-ghost" data-nav="diary" style="margin-top:10px;">查看全部日记</button>`
+                : `<p style="color:var(--ink-soft);">还没有记录。保存这一条后，会在这里回看。</p>`
+            }
+          </div>
+        </aside>
       </div>
     </section>
   `;
@@ -1794,7 +1822,7 @@ function renderReport() {
         <div class="stat"><strong>${report.week.length}</strong><span>本周记录</span></div>
         <div class="stat"><strong>${report.avgIntensity || "-"}</strong><span>平均强度</span></div>
         <div class="stat"><strong>${report.topMood ? report.topMood.emoji + report.topMood.name : "-"}</strong><span>主导情绪</span></div>
-        <div class="stat"><strong class="stat-trigger">${report.topTrigger ? report.topTrigger.name : "-"}</strong><span>主触发点</span></div>
+        <div class="stat"><strong>${report.topTrigger ? report.topTrigger.name : "-"}</strong><span>主触发点</span></div>
       </div>
 
       <div class="grid-2" style="margin-top:14px;">

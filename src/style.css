@@ -127,8 +127,7 @@ button { cursor: pointer; border: none; background: none; }
 .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
 .stats-4 { grid-template-columns: repeat(4, 1fr); }
 .stat { padding: 14px; border-radius: 16px; background: rgba(255,255,255,0.55); border: 1px solid var(--line); text-align: center; }
-.stat strong { display: block; font-family: var(--font-display); font-size: 1.45rem; margin-bottom: 2px; word-break: break-word; }
-.stat .stat-trigger { font-size: 1.05rem; line-height: 1.25; }
+.stat strong { display: block; font-family: var(--font-display); font-size: 1.45rem; line-height: 1.25; margin-bottom: 2px; word-break: break-word; }
 .stat span { font-size: 0.8rem; color: var(--ink-soft); }
 .chart { display: flex; align-items: end; gap: 8px; height: 140px; padding: 8px 4px 0; }
 .chart .col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: end; }
@@ -393,6 +392,15 @@ button { cursor: pointer; border: none; background: none; }
   border-color: rgba(47,111,94,0.45);
   box-shadow: 0 0 0 3px rgba(47,111,94,0.12);
 }
+.record-layout { align-items: start; }
+.record-side { display: grid; gap: 14px; }
+.record-tip h3 { font-family: var(--font-display); font-size: 1.2rem; margin: 8px 0 6px; }
+.record-tip p { color: var(--ink-soft); font-size: 0.92rem; line-height: 1.55; }
+.record-side-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.record-latest { display: grid; gap: 6px; }
+.record-latest strong { font-family: var(--font-display); font-size: 1.15rem; }
+.record-latest span { color: var(--ink-soft); font-size: 0.85rem; }
+.record-latest em { font-style: normal; color: var(--ink); font-size: 0.92rem; line-height: 1.5; }
 .follow-compare {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
