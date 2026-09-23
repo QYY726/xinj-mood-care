@@ -141,13 +141,14 @@ const GUEST_KEY = "moodcare-guest-v1";
 
 const seedEntries = () => {
   const now = Date.now();
+  // newest first (降序)
   return [
-    { id: "s1", moodId: "anxious", intensity: 7, triggers: ["学业 deadline", "睡眠不足"], note: "论文改到半夜，早上起来心跳有点快。", createdAt: now - 86400000 * 5 },
-    { id: "s2", moodId: "stressed", intensity: 8, triggers: ["职场会议", "自我苛责"], note: "汇报被追问，总觉得自己准备不够。", createdAt: now - 86400000 * 4 },
-    { id: "s3", moodId: "tired", intensity: 6, triggers: ["职场会议", "身体状态"], note: "连续开会，脑子转不动。", createdAt: now - 86400000 * 3 },
-    { id: "s4", moodId: "lonely", intensity: 5, triggers: ["社交比较", "人际关系"], note: "刷到同学升职，忽然有点空。", createdAt: now - 86400000 * 2 },
-    { id: "s5", moodId: "grateful", intensity: 8, triggers: ["人际关系"], note: "朋友发来鼓励，心里暖了一下。", createdAt: now - 86400000 },
     { id: "s6", moodId: "hopeful", intensity: 7, triggers: ["学业 deadline"], note: "拆完一个小任务，感觉又能往前走一点。", createdAt: now - 3600000 * 5 },
+    { id: "s5", moodId: "grateful", intensity: 8, triggers: ["人际关系"], note: "朋友发来鼓励，心里暖了一下。", createdAt: now - 86400000 },
+    { id: "s4", moodId: "lonely", intensity: 5, triggers: ["社交比较", "人际关系"], note: "刷到同学升职，忽然有点空。", createdAt: now - 86400000 * 2 },
+    { id: "s3", moodId: "tired", intensity: 6, triggers: ["职场会议", "身体状态"], note: "连续开会，脑子转不动。", createdAt: now - 86400000 * 3 },
+    { id: "s2", moodId: "stressed", intensity: 8, triggers: ["职场会议", "自我苛责"], note: "汇报被追问，总觉得自己准备不够。", createdAt: now - 86400000 * 4 },
+    { id: "s1", moodId: "anxious", intensity: 7, triggers: ["学业 deadline", "睡眠不足"], note: "论文改到半夜，早上起来心跳有点快。", createdAt: now - 86400000 * 5 },
   ];
 };
 
@@ -204,24 +205,34 @@ function scopeKey(base, scope) {
   return `${base}:${scope || "guest"}`;
 }
 
+function sortEntriesDesc(entries) {
+  return [...entries].sort((a, b) => b.createdAt - a.createdAt);
+}
+
 function loadEntriesFor(scope) {
   const key = scopeKey(STORAGE_KEY, scope);
   try {
     const raw = localStorage.getItem(key);
+    let list;
     if (!raw) {
       // migrate legacy unscoped data for guest once
       if (scope === "guest") {
         const legacy = localStorage.getItem(STORAGE_KEY);
         if (legacy) {
-          localStorage.setItem(key, legacy);
-          return JSON.parse(legacy);
+          list = JSON.parse(legacy);
+          list = sortEntriesDesc(Array.isArray(list) ? list : []);
+          localStorage.setItem(key, JSON.stringify(list));
+          return list;
         }
       }
       const seeded = seedEntries();
       localStorage.setItem(key, JSON.stringify(seeded));
       return seeded;
     }
-    return JSON.parse(raw);
+    list = JSON.parse(raw);
+    list = sortEntriesDesc(Array.isArray(list) ? list : []);
+    localStorage.setItem(key, JSON.stringify(list));
+    return list;
   } catch {
     return seedEntries();
   }
@@ -523,7 +534,7 @@ function entriesInLastDays(days = 7) {
   const start = new Date();
   start.setHours(0, 0, 0, 0);
   start.setDate(start.getDate() - (days - 1));
-  return state.entries.filter((e) => e.createdAt >= start.getTime());
+  return sortEntriesDesc(state.entries.filter((e) => e.createdAt >= start.getTime()));
 }
 
 function buildWeeklyReport() {
@@ -1835,12 +1846,13 @@ function renderBreathe() {
 }
 
 function renderDiary() {
+  const entries = sortEntriesDesc(state.entries);
   return `
     <section class="section">
       <div class="section-head">
         <div>
           <h2>情绪日记</h2>
-          <p>你的私密记录保存在本机浏览器中</p>
+          <p>你的私密记录保存在本机浏览器中 · 按时间从新到旧</p>
         </div>
         <div class="action-row">
           <button class="btn-primary" data-export-diary-card>导出为卡片</button>
@@ -1849,9 +1861,9 @@ function renderDiary() {
       </div>
       <div class="card timeline">
         ${
-          state.entries.length === 0
+          entries.length === 0
             ? `<div class="empty">还没有日记，从一次小记录开始。</div>`
-            : state.entries
+            : entries
                 .map((e) => {
                   const m = moodById(e.moodId);
                   return `
