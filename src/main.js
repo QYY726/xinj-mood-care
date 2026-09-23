@@ -302,8 +302,48 @@ function calcStreak() {
   return streak;
 }
 
+const APP_VIEWS = ["home", "record", "insight", "report", "care", "breathe", "diary", "followup", "auth"];
+
+function parseHashView() {
+  const raw = (location.hash || "").replace(/^#\/?/, "").trim();
+  const view = raw.split(/[/?#]/)[0];
+  if (APP_VIEWS.includes(view)) return view;
+  try {
+    const saved = sessionStorage.getItem("moodcare-view");
+    if (APP_VIEWS.includes(saved)) return saved;
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+function persistView(view) {
+  if (!APP_VIEWS.includes(view)) return;
+  try {
+    sessionStorage.setItem("moodcare-view", view);
+  } catch {
+    /* ignore */
+  }
+  const next = `#/${view}`;
+  if (location.hash !== next) {
+    history.replaceState(null, "", `${location.pathname}${location.search}${next}`);
+  }
+}
+
+function assignView(view) {
+  state.view = view;
+  persistView(view);
+}
+
+const bootView = (() => {
+  if (!(bootUser || bootGuest)) return "auth";
+  const fromHash = parseHashView();
+  if (fromHash && fromHash !== "auth") return fromHash;
+  return "home";
+})();
+
 const state = {
-  view: bootUser || bootGuest ? "home" : "auth",
+  view: bootView,
   user: bootUser,
   guest: bootGuest,
   authTab: "login",
@@ -351,7 +391,7 @@ function enterAsGuest() {
   state.guest = true;
   state.authError = "";
   reloadUserData();
-  state.view = "home";
+  assignView("home");
   showToast("已进入体验模式，数据保存在本机");
 }
 
@@ -363,7 +403,7 @@ function logoutUser() {
   state.authTab = "login";
   state.authForm = { name: "", email: "", password: "", confirm: "" };
   state.authError = "";
-  state.view = "auth";
+  assignView("auth");
   stopBreathing();
   render();
 }
@@ -395,7 +435,7 @@ function registerUser() {
   state.authError = "";
   state.authForm = { name: "", email: "", password: "", confirm: "" };
   reloadUserData();
-  state.view = "home";
+  assignView("home");
   showToast(`欢迎加入，${user.name}`);
 }
 
@@ -417,7 +457,7 @@ function loginUser() {
   state.authError = "";
   state.authForm = { name: "", email: "", password: "", confirm: "" };
   reloadUserData();
-  state.view = "home";
+  assignView("home");
   showToast(`欢迎回来，${found.name}`);
 }
 
@@ -668,7 +708,7 @@ function updateBreatheUI(restartAnim = false) {
 function setView(view) {
   if (view !== "breathe") stopBreathing();
   if (view !== "followup") state.followUp = null;
-  state.view = view;
+  assignView(view);
   render();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -683,7 +723,7 @@ function openFollowUp(activity) {
     after: Math.max(1, before - 1),
     entryId: latest?.id || null,
   };
-  state.view = "followup";
+  assignView("followup");
   render();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -704,7 +744,7 @@ function saveFollowUp() {
   }
   const delta = f.before - after;
   state.followUp = null;
-  state.view = "home";
+  assignView("home");
   if (delta > 0) showToast(`强度下降了 ${delta} 分，你关照到自己了`);
   else if (delta < 0) showToast("强度有波动也没关系，停下来照顾自己本身就很重要");
   else showToast("强度持平，至少你给了自己一次喘息");
@@ -1852,7 +1892,7 @@ function renderDiary() {
       <div class="section-head">
         <div>
           <h2>情绪日记</h2>
-          <p>你的私密记录保存在本机浏览器中 · 按时间从新到旧</p>
+          <p>你的私密记录保存在本机浏览器中</p>
         </div>
         <div class="action-row">
           <button class="btn-primary" data-export-diary-card>导出为卡片</button>
@@ -1892,7 +1932,7 @@ function renderDiary() {
 function render() {
   const root = document.getElementById("app");
   if (state.view === "auth" || (!state.user && !state.guest)) {
-    state.view = "auth";
+    assignView("auth");
     root.innerHTML = `
       ${renderAuth()}
       <div class="toast ${state.toast ? "show" : ""}">${state.toast}</div>
@@ -1900,6 +1940,7 @@ function render() {
     bindAuth();
     return;
   }
+  persistView(state.view);
   const views = {
     home: renderHome,
     record: renderRecord,
@@ -1961,7 +2002,7 @@ function bind() {
   const gotoAuth = document.querySelector("[data-goto-auth]");
   if (gotoAuth) {
     gotoAuth.addEventListener("click", () => {
-      state.view = "auth";
+      assignView("auth");
       state.authError = "";
       render();
     });
@@ -2085,7 +2126,7 @@ function bind() {
   document.querySelectorAll("[data-start-breathe]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const mode = btn.getAttribute("data-start-breathe");
-      state.view = "breathe";
+      assignView("breathe");
       startBreathing(mode);
     });
   });
@@ -2099,4 +2140,16 @@ function bind() {
   }
 }
 
+window.addEventListener("hashchange", () => {
+  if (!state.user && !state.guest) return;
+  const view = parseHashView();
+  if (!view || view === "auth" || view === state.view) return;
+  if (view !== "breathe") stopBreathing();
+  if (view !== "followup") state.followUp = null;
+  assignView(view);
+  render();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+});
+
+persistView(state.view);
 render();
