@@ -354,6 +354,10 @@ const state = {
   draft: { moodId: "calm", intensity: 5, triggers: [], note: "", customInput: "" },
   toast: "",
   followUp: null,
+  calendarCursor: {
+    year: new Date().getFullYear(),
+    month: new Date().getMonth(),
+  },
   breathe: {
     mode: "478",
     running: false,
@@ -1651,32 +1655,145 @@ function renderInsight() {
   `;
 }
 
+function dayEntries(year, month, day) {
+  return state.entries.filter((e) => {
+    const d = new Date(e.createdAt);
+    return d.getFullYear() === year && d.getMonth() === month && d.getDate() === day;
+  });
+}
+
+function moodForCalendarDay(year, month, day) {
+  const list = dayEntries(year, month, day);
+  if (!list.length) return null;
+  return dominantMoodFromEntries(list);
+}
+
+function buildMonthCalendar(year, month) {
+  const firstDow = new Date(year, month, 1).getDay(); // 0=Sun
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const today = new Date();
+  const cells = [];
+  for (let i = 0; i < firstDow; i++) cells.push({ empty: true });
+  for (let day = 1; day <= daysInMonth; day++) {
+    const list = dayEntries(year, month, day);
+    const mood = list.length ? dominantMoodFromEntries(list) : null;
+    cells.push({
+      empty: false,
+      day,
+      mood,
+      count: list.length,
+      isToday:
+        today.getFullYear() === year &&
+        today.getMonth() === month &&
+        today.getDate() === day,
+      inWeek: (() => {
+        const d = new Date(year, month, day);
+        d.setHours(0, 0, 0, 0);
+        const end = new Date();
+        end.setHours(0, 0, 0, 0);
+        const start = new Date(end);
+        start.setDate(end.getDate() - 6);
+        return d >= start && d <= end;
+      })(),
+    });
+  }
+  while (cells.length % 7 !== 0) cells.push({ empty: true });
+  return cells;
+}
+
+function shiftCalendarMonth(delta) {
+  let { year, month } = state.calendarCursor;
+  month += delta;
+  if (month < 0) {
+    month = 11;
+    year -= 1;
+  } else if (month > 11) {
+    month = 0;
+    year += 1;
+  }
+  state.calendarCursor = { year, month };
+  render();
+}
+
+function goCalendarToday() {
+  const now = new Date();
+  state.calendarCursor = { year: now.getFullYear(), month: now.getMonth() };
+  render();
+}
+
 function renderReport() {
   const report = buildWeeklyReport();
-  const trend = weekTrend(state.entries);
-  const maxAvg = Math.max(...trend.map((t) => t.avg), 1);
+  const { year, month } = state.calendarCursor;
+  const cells = buildMonthCalendar(year, month);
+  const monthLabel = `${year}年${month + 1}月`;
   const end = new Date();
   const start = new Date();
   start.setDate(end.getDate() - 6);
+  const weekdays = ["日", "一", "二", "三", "四", "五", "六"];
 
   return `
     <section class="section">
       <div class="section-head">
         <div>
           <h2>情绪周报</h2>
-          <p>${start.getMonth() + 1}/${start.getDate()} - ${end.getMonth() + 1}/${end.getDate()} · 近 7 天复盘</p>
+          <p>${start.getMonth() + 1}/${start.getDate()} - ${end.getMonth() + 1}/${end.getDate()} · 日历一眼看心情</p>
         </div>
         <div class="action-row">
           <button class="btn-primary" data-export-card>导出为卡片</button>
         </div>
       </div>
-      <div class="stats stats-4">
+
+      <div class="card mood-calendar">
+        <div class="cal-toolbar">
+          <button class="btn-ghost cal-nav" type="button" data-cal-prev aria-label="上个月">‹</button>
+          <div class="cal-title">
+            <strong>${monthLabel}</strong>
+            <span>日期下方是当天主导心情</span>
+          </div>
+          <div class="cal-actions">
+            <button class="btn-soft" type="button" data-cal-today>今天</button>
+            <button class="btn-ghost cal-nav" type="button" data-cal-next aria-label="下个月">›</button>
+          </div>
+        </div>
+        <div class="cal-weekdays">
+          ${weekdays.map((w) => `<span>${w}</span>`).join("")}
+        </div>
+        <div class="cal-grid">
+          ${cells
+            .map((cell) => {
+              if (cell.empty) return `<div class="cal-cell empty"></div>`;
+              const classes = [
+                "cal-cell",
+                cell.isToday ? "today" : "",
+                cell.inWeek ? "in-week" : "",
+                cell.mood ? "has-mood" : "",
+              ]
+                .filter(Boolean)
+                .join(" ");
+              return `
+                <div class="${classes}" title="${cell.mood ? cell.mood.name : "暂无记录"}">
+                  <span class="cal-day">${cell.day}</span>
+                  <span class="cal-mood">${cell.mood ? cell.mood.emoji : "·"}</span>
+                  ${cell.count > 1 ? `<span class="cal-count">${cell.count}</span>` : ""}
+                </div>`;
+            })
+            .join("")}
+        </div>
+        <div class="cal-legend">
+          <span><i class="dot today"></i>今天</span>
+          <span><i class="dot week"></i>近 7 天</span>
+          <span>有记录的日子会显示心情符号</span>
+        </div>
+      </div>
+
+      <div class="stats stats-4" style="margin-top:14px;">
         <div class="stat"><strong>${report.week.length}</strong><span>本周记录</span></div>
         <div class="stat"><strong>${report.avgIntensity || "-"}</strong><span>平均强度</span></div>
         <div class="stat"><strong>${report.topMood ? report.topMood.emoji + report.topMood.name : "-"}</strong><span>主导情绪</span></div>
         <div class="stat"><strong>${report.topTrigger ? report.topTrigger.name.slice(0, 6) : "-"}</strong><span>主触发点</span></div>
       </div>
-      <div class="grid-2">
+
+      <div class="grid-2" style="margin-top:14px;">
         <div class="card">
           <div class="report-quote">${report.headline}</div>
           <div class="report-body">
@@ -1692,19 +1809,7 @@ function renderReport() {
           }
         </div>
         <div class="card">
-          <h3 style="font-family:var(--font-display);margin-bottom:10px;">本周趋势</h3>
-          <div class="chart">
-            ${trend
-              .map(
-                (d) => `
-              <div class="col">
-                <div class="pill" style="height:${Math.max(8, (d.avg / maxAvg) * 100)}%"></div>
-                <small>${d.label.slice(d.label.indexOf("/") + 1)}</small>
-              </div>`
-              )
-              .join("")}
-          </div>
-          <h3 style="font-family:var(--font-display);margin:16px 0 10px;">高频触发 Top3</h3>
+          <h3 style="font-family:var(--font-display);margin-bottom:10px;">高频触发 Top3</h3>
           ${
             report.triggers.length === 0
               ? `<div class="empty">本周暂无触发数据</div>`
@@ -2113,6 +2218,12 @@ function bind() {
   document.querySelectorAll("[data-export-diary-card]").forEach((btn) => {
     btn.addEventListener("click", showDiaryCardModal);
   });
+  const calPrev = document.querySelector("[data-cal-prev]");
+  if (calPrev) calPrev.addEventListener("click", () => shiftCalendarMonth(-1));
+  const calNext = document.querySelector("[data-cal-next]");
+  if (calNext) calNext.addEventListener("click", () => shiftCalendarMonth(1));
+  const calToday = document.querySelector("[data-cal-today]");
+  if (calToday) calToday.addEventListener("click", goCalendarToday);
   document.querySelectorAll("[data-breathe-mode]").forEach((btn) => {
     btn.addEventListener("click", () => {
       stopBreathing();
