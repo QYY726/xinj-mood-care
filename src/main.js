@@ -90,6 +90,8 @@ const BREATHE_MODES = {
 };
 
 const STORAGE_KEY = "moodcare-entries-v1";
+const TRIGGERS_KEY = "moodcare-triggers-v1";
+
 const seedEntries = () => {
   const now = Date.now();
   return [
@@ -102,11 +104,59 @@ const seedEntries = () => {
   ];
 };
 
+function loadCustomTriggers() {
+  try {
+    const raw = localStorage.getItem(TRIGGERS_KEY);
+    if (!raw) return [];
+    const list = JSON.parse(raw);
+    return Array.isArray(list) ? list.filter((t) => typeof t === "string" && t.trim()) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveCustomTriggers() {
+  localStorage.setItem(TRIGGERS_KEY, JSON.stringify(state.customTriggers));
+}
+
+function allTriggers() {
+  const extras = state.customTriggers.filter((t) => !TRIGGERS.includes(t));
+  return [...TRIGGERS, ...extras];
+}
+
+function dayKey(ts) {
+  const d = new Date(ts);
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+
+function checkedInToday() {
+  const today = dayKey(Date.now());
+  return state.entries.some((e) => dayKey(e.createdAt) === today);
+}
+
+function calcStreak() {
+  const days = new Set(state.entries.map((e) => dayKey(e.createdAt)));
+  if (!days.size) return 0;
+  const cursor = new Date();
+  cursor.setHours(0, 0, 0, 0);
+  if (!days.has(dayKey(cursor.getTime()))) {
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  let streak = 0;
+  while (days.has(dayKey(cursor.getTime()))) {
+    streak += 1;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return streak;
+}
+
 const state = {
   view: "home",
   entries: loadEntries(),
-  draft: { moodId: "calm", intensity: 5, triggers: [], note: "" },
+  customTriggers: loadCustomTriggers(),
+  draft: { moodId: "calm", intensity: 5, triggers: [], note: "", customInput: "" },
   toast: "",
+  followUp: null,
   breathe: {
     mode: "478",
     running: false,
@@ -313,8 +363,7 @@ function startBreathing(modeId) {
     }
 
     stopBreathing();
-    showToast("呼吸练习完成，你做得很好");
-    setView("care");
+    openFollowUp(currentMode.name);
   }, 1000);
 }
 
@@ -342,9 +391,75 @@ function updateBreatheUI(restartAnim = false) {
 
 function setView(view) {
   if (view !== "breathe") stopBreathing();
+  if (view !== "followup") state.followUp = null;
   state.view = view;
   render();
   window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function openFollowUp(activity) {
+  stopBreathing();
+  const latest = state.entries[0];
+  const before = latest ? Number(latest.intensity) : 5;
+  state.followUp = {
+    activity,
+    before,
+    after: Math.max(1, before - 1),
+    entryId: latest?.id || null,
+  };
+  state.view = "followup";
+  render();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function saveFollowUp() {
+  const f = state.followUp;
+  if (!f) return;
+  const after = Number(f.after);
+  const idx = state.entries.findIndex((e) => e.id === f.entryId);
+  if (idx >= 0) {
+    state.entries[idx] = {
+      ...state.entries[idx],
+      afterIntensity: after,
+      careActivity: f.activity,
+      caredAt: Date.now(),
+    };
+    saveEntries();
+  }
+  const delta = f.before - after;
+  state.followUp = null;
+  state.view = "home";
+  if (delta > 0) showToast(`强度下降了 ${delta} 分，你关照到自己了`);
+  else if (delta < 0) showToast("强度有波动也没关系，停下来照顾自己本身就很重要");
+  else showToast("强度持平，至少你给了自己一次喘息");
+}
+
+function addCustomTrigger(raw) {
+  const name = (raw || "").trim().slice(0, 20);
+  if (!name) return showToast("请输入触发因素");
+  if (allTriggers().includes(name)) {
+    if (!state.draft.triggers.includes(name)) {
+      state.draft.triggers = [...state.draft.triggers, name];
+    }
+    state.draft.customInput = "";
+    showToast("已选中该触发因素");
+    render();
+    return;
+  }
+  state.customTriggers = [...state.customTriggers, name];
+  saveCustomTriggers();
+  state.draft.triggers = [...state.draft.triggers, name];
+  state.draft.customInput = "";
+  showToast("已添加自定义触发因素");
+  render();
+}
+
+function removeCustomTrigger(name) {
+  state.customTriggers = state.customTriggers.filter((t) => t !== name);
+  saveCustomTriggers();
+  state.draft.triggers = state.draft.triggers.filter((t) => t !== name);
+  showToast("已删除自定义触发因素");
+  render();
 }
 
 function saveDraft() {
@@ -359,8 +474,8 @@ function saveDraft() {
   };
   state.entries = [entry, ...state.entries];
   saveEntries();
-  state.draft = { moodId: entry.moodId, intensity: 5, triggers: [], note: "" };
-  showToast("已记下这一刻，给你推荐调节方案");
+  state.draft = { moodId: entry.moodId, intensity: 5, triggers: [], note: "", customInput: "" };
+  showToast(checkedInToday() ? `已记下 · 连续签到 ${calcStreak()} 天` : "已记下这一刻");
   setView("care");
 }
 
@@ -437,13 +552,25 @@ function renderNav() {
 function renderHome() {
   const latest = state.entries[0];
   const m = latest ? moodById(latest.moodId) : null;
+  const streak = calcStreak();
+  const todayOk = checkedInToday();
   return `
     <section class="hero">
       <div class="hero-copy">
+        <div class="streak-row">
+          <div class="streak-pill ${todayOk ? "ok" : ""}">
+            <span>连续签到</span>
+            <strong>${streak}</strong>
+            <span>天</span>
+          </div>
+          <div class="streak-pill ${todayOk ? "ok" : ""}">
+            ${todayOk ? "今日已记录 ✓" : "今日还未记录"}
+          </div>
+        </div>
         <h1>把情绪写下来，再温柔对待自己</h1>
         <p>面对学业、职场与社交压力时，用 30 秒完成一次低门槛记录，看清触发因素，并获得可马上做的自我调节方案。</p>
         <div class="cta-row">
-          <button class="btn-primary" data-nav="record">开始记录情绪</button>
+          <button class="btn-primary" data-nav="record">${todayOk ? "再记一条" : "开始今日签到"}</button>
           <button class="btn-ghost" data-nav="breathe">先做一轮呼吸</button>
         </div>
       </div>
@@ -464,7 +591,7 @@ function renderHome() {
       <div class="section-head">
         <div>
           <h2>今日建议路径</h2>
-          <p>记录 → 看见触发因素 → 呼吸/自助方案 → 周报复盘</p>
+          <p>记录 → 调节 → 回访强度 → 周报复盘</p>
         </div>
       </div>
       <div class="grid-3">
@@ -472,7 +599,7 @@ function renderHome() {
           <div>
             <span class="tag">01 记录</span>
             <h3>30 秒情绪签到</h3>
-            <p>选情绪、标强度、点触发因素，不必写很长。</p>
+            <p>选情绪、标强度、点触发因素，也可自定义你的触发词。</p>
           </div>
           <button class="btn-soft" data-nav="record">去记录</button>
         </article>
@@ -499,12 +626,13 @@ function renderHome() {
 
 function renderRecord() {
   const d = state.draft;
+  const triggers = allTriggers();
   return `
     <section class="section">
       <div class="section-head">
         <div>
           <h2>记录这一刻</h2>
-          <p>诚实就好，不评判对错</p>
+          <p>诚实就好，不评判对错 · 连续签到 ${calcStreak()} 天</p>
         </div>
       </div>
       <div class="grid-2">
@@ -529,12 +657,20 @@ function renderRecord() {
             </div>
           </div>
           <div class="field">
-            <label>可能的触发因素（可多选）</label>
+            <label>可能的触发因素（可多选 / 可自定义）</label>
             <div class="chips">
-              ${TRIGGERS.map(
-                (t) =>
-                  `<button class="chip ${d.triggers.includes(t) ? "on" : ""}" data-trigger="${t}">${t}</button>`
-              ).join("")}
+              ${triggers
+                .map((t) => {
+                  const isCustom = state.customTriggers.includes(t);
+                  return `<button class="chip ${d.triggers.includes(t) ? "on" : ""} ${isCustom ? "custom" : ""}" data-trigger="${t}">
+                    ${t}${isCustom ? `<span class="chip-x" data-remove-trigger="${t}" title="删除">×</span>` : ""}
+                  </button>`;
+                })
+                .join("")}
+            </div>
+            <div class="trigger-add">
+              <input data-custom-trigger type="text" maxlength="20" placeholder="添加我的触发因素，如：被催进度" value="${d.customInput || ""}" />
+              <button class="btn-soft" data-add-trigger type="button">添加</button>
             </div>
           </div>
           <div class="field">
@@ -579,7 +715,7 @@ function renderInsight() {
       <div class="stats">
         <div class="stat"><strong>${state.entries.length}</strong><span>累计记录</span></div>
         <div class="stat"><strong>${avgIntensity}</strong><span>平均强度</span></div>
-        <div class="stat"><strong>${moodCount}</strong><span>情绪种类</span></div>
+        <div class="stat"><strong>${calcStreak()}</strong><span>连续签到</span></div>
       </div>
       <div class="grid-2">
         <div class="card">
@@ -720,7 +856,7 @@ function renderCare() {
       <div class="section-head">
         <div>
           <h2>自我关怀方案</h2>
-          <p>基于「${mood.emoji} ${mood.name}」为你推荐，选一个马上开始</p>
+          <p>基于「${mood.emoji} ${mood.name}」为你推荐，完成后可回访强度变化</p>
         </div>
         <button class="btn-ghost" data-nav="breathe">打开呼吸引导</button>
       </div>
@@ -747,6 +883,52 @@ function renderCare() {
           .join("")}
       </div>
       <p class="disclaimer">心迹是自我觉察与日常调节工具，不能替代专业心理咨询或医疗诊断。若持续痛苦或有自伤风险，请寻求专业帮助。</p>
+    </section>
+  `;
+}
+
+function renderFollowUp() {
+  const f = state.followUp;
+  if (!f) {
+    return `<section class="section"><div class="card empty">没有进行中的回访，去完成一个关怀方案吧。<div style="margin-top:12px;"><button class="btn-soft" data-nav="care">回到关怀</button></div></div></section>`;
+  }
+  const delta = f.before - Number(f.after);
+  const deltaText =
+    delta > 0 ? `下降 ${delta} 分` : delta < 0 ? `上升 ${Math.abs(delta)} 分` : "持平";
+  const deltaClass = delta > 0 ? "delta-good" : "delta-neutral";
+  return `
+    <section class="section">
+      <div class="section-head">
+        <div>
+          <h2>调节后回访</h2>
+          <p>刚完成「${f.activity}」，现在感觉如何？</p>
+        </div>
+      </div>
+      <div class="card" style="max-width:560px;margin:0 auto;">
+        <div class="follow-compare">
+          <div class="follow-box">
+            <div class="num">${f.before}</div>
+            <div class="lbl">调节前强度</div>
+          </div>
+          <div class="follow-arrow">→</div>
+          <div class="follow-box">
+            <div class="num">${f.after}</div>
+            <div class="lbl">现在强度</div>
+          </div>
+        </div>
+        <div class="field">
+          <label>拖动记录现在的强度</label>
+          <div class="range-row">
+            <input type="range" min="1" max="10" value="${f.after}" data-follow-after />
+            <div class="intensity-val">${f.after}/10</div>
+          </div>
+        </div>
+        <p style="text-align:center;margin:8px 0 16px;" class="${deltaClass}">相较调节前：${deltaText}</p>
+        <div class="action-row" style="justify-content:center;">
+          <button class="btn-ghost" data-nav="care">跳过</button>
+          <button class="btn-primary" data-save-followup>保存回访</button>
+        </div>
+      </div>
     </section>
   `;
 }
@@ -845,6 +1027,11 @@ function renderDiary() {
                     <div>
                       <h4>${m.name} · 强度 ${e.intensity}/10</h4>
                       <div class="note">${e.note || "（未写文字，只留下了情绪痕迹）"}</div>
+                      ${
+                        e.afterIntensity != null
+                          ? `<div class="after">调节后 ${e.afterIntensity}/10${e.careActivity ? ` · ${e.careActivity}` : ""}</div>`
+                          : ""
+                      }
                       <div class="tags">${e.triggers.map((t) => `<span>${t}</span>`).join("")}</div>
                     </div>
                     <div class="time">${formatTime(e.createdAt)}</div>
@@ -866,6 +1053,7 @@ function render() {
     report: renderReport,
     care: renderCare,
     breathe: renderBreathe,
+    followup: renderFollowUp,
     diary: renderDiary,
   };
   root.innerHTML = `
@@ -895,7 +1083,8 @@ function bind() {
     });
   });
   document.querySelectorAll("[data-trigger]").forEach((btn) => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", (e) => {
+      if (e.target.closest("[data-remove-trigger]")) return;
       const t = btn.getAttribute("data-trigger");
       const set = new Set(state.draft.triggers);
       if (set.has(t)) set.delete(t);
@@ -904,12 +1093,62 @@ function bind() {
       render();
     });
   });
+  document.querySelectorAll("[data-remove-trigger]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      removeCustomTrigger(btn.getAttribute("data-remove-trigger"));
+    });
+  });
+  const customInput = document.querySelector("[data-custom-trigger]");
+  if (customInput) {
+    customInput.addEventListener("input", (e) => {
+      state.draft.customInput = e.target.value;
+    });
+    customInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        addCustomTrigger(customInput.value);
+      }
+    });
+  }
+  const addTrigger = document.querySelector("[data-add-trigger]");
+  if (addTrigger) {
+    addTrigger.addEventListener("click", () => {
+      const input = document.querySelector("[data-custom-trigger]");
+      addCustomTrigger(input ? input.value : state.draft.customInput);
+    });
+  }
   const intensity = document.querySelector("[data-intensity]");
   if (intensity) {
     intensity.addEventListener("input", (e) => {
       state.draft.intensity = e.target.value;
       const label = document.querySelector(".intensity-val");
       if (label) label.textContent = `${e.target.value}/10`;
+    });
+  }
+  const followAfter = document.querySelector("[data-follow-after]");
+  if (followAfter) {
+    followAfter.addEventListener("input", (e) => {
+      if (!state.followUp) return;
+      state.followUp.after = e.target.value;
+      const label = document.querySelector(".intensity-val");
+      if (label) label.textContent = `${e.target.value}/10`;
+      const num = document.querySelectorAll(".follow-box .num")[1];
+      if (num) num.textContent = e.target.value;
+      const deltaEl = document.querySelector(".follow-compare + .field + p");
+      if (deltaEl) {
+        const delta = state.followUp.before - Number(e.target.value);
+        deltaEl.textContent =
+          delta > 0
+            ? `相较调节前：下降 ${delta} 分`
+            : delta < 0
+              ? `相较调节前：上升 ${Math.abs(delta)} 分`
+              : "相较调节前：持平";
+        deltaEl.className = delta > 0 ? "delta-good" : "delta-neutral";
+        deltaEl.style.textAlign = "center";
+        deltaEl.style.margin = "8px 0 16px";
+      }
     });
   }
   const note = document.querySelector("[data-note]");
@@ -920,8 +1159,10 @@ function bind() {
   }
   const save = document.querySelector("[data-save]");
   if (save) save.addEventListener("click", saveDraft);
+  const saveFollow = document.querySelector("[data-save-followup]");
+  if (saveFollow) saveFollow.addEventListener("click", saveFollowUp);
   document.querySelectorAll("[data-done]").forEach((btn) => {
-    btn.addEventListener("click", () => showToast(`很棒，已完成「${btn.getAttribute("data-done")}」`));
+    btn.addEventListener("click", () => openFollowUp(btn.getAttribute("data-done")));
   });
   document.querySelectorAll("[data-export-json]").forEach((btn) => {
     btn.addEventListener("click", exportJSON);
