@@ -1619,7 +1619,7 @@ function renderHome() {
           </div>
         </div>
         <h1>把情绪写下来，再温柔对待自己</h1>
-        <p>面对学业、职场与社交压力时，用 30 秒完成一次低门槛记录，看清触发因素，并获得可马上做的自我调节方案。</p>
+        <p>用 30 秒记下此刻心情，再给自己一点温柔调节。</p>
         <div class="cta-row">
           <button class="btn-primary" data-nav="record">${todayOk ? "再记一条" : "开始今日签到"}</button>
           <button class="btn-ghost" data-nav="breathe">先做一轮呼吸</button>
@@ -1640,31 +1640,30 @@ function renderHome() {
       <div class="section-head">
         <div>
           <h2>今日建议路径</h2>
-          <p>记录 → 呼吸 → 关怀 → 洞察 → 周报</p>
         </div>
       </div>
       <div class="grid-3">
         <article class="card care-card">
           <div>
-            <span class="tag">01 记录</span>
+            <span class="tag">记录</span>
             <h3>30 秒情绪签到</h3>
-            <p>选情绪、标强度、点触发因素，也可自定义你的触发词。</p>
+            <p>选情绪、标强度，轻轻记下这一刻。</p>
           </div>
           <button class="btn-soft" data-nav="record">去记录</button>
         </article>
         <article class="card care-card">
           <div>
-            <span class="tag">02 呼吸</span>
+            <span class="tag">呼吸</span>
             <h3>呼吸引导动画</h3>
-            <p>跟着圆圈节奏吸气、屏息、呼气，马上能开始。</p>
+            <p>跟着圆圈，慢慢吸，慢慢呼。</p>
           </div>
           <button class="btn-soft" data-nav="breathe">开始呼吸</button>
         </article>
         <article class="card care-card">
           <div>
-            <span class="tag">03 复盘</span>
+            <span class="tag">复盘</span>
             <h3>周报与导出</h3>
-            <p>看清一周模式，也能把日记导出带走。</p>
+            <p>回看一周心情，也能导出带走。</p>
           </div>
           <button class="btn-soft" data-nav="report">看周报</button>
         </article>
