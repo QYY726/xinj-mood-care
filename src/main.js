@@ -168,7 +168,7 @@ const GOODS_PROMPTS = [
 
 const seedEntries = () => {
   const now = Date.now();
-  // newest first (降序)
+  // newest first (降序)；含上周样本，方便「上周 vs 本周」演示
   return [
     { id: "s6", moodId: "hopeful", intensity: 7, triggers: ["学业 deadline"], note: "拆完一个小任务，感觉又能往前走一点。", createdAt: now - 3600000 * 5 },
     { id: "s5", moodId: "grateful", intensity: 8, triggers: ["人际关系"], note: "朋友发来鼓励，心里暖了一下。", createdAt: now - 86400000 },
@@ -176,6 +176,9 @@ const seedEntries = () => {
     { id: "s3", moodId: "tired", intensity: 6, triggers: ["职场会议", "身体状态"], note: "连续开会，脑子转不动。", createdAt: now - 86400000 * 3 },
     { id: "s2", moodId: "stressed", intensity: 8, triggers: ["职场会议", "自我苛责"], note: "汇报被追问，总觉得自己准备不够。", createdAt: now - 86400000 * 4 },
     { id: "s1", moodId: "anxious", intensity: 7, triggers: ["学业 deadline", "睡眠不足"], note: "论文改到半夜，早上起来心跳有点快。", createdAt: now - 86400000 * 5 },
+    { id: "s0c", moodId: "calm", intensity: 4, triggers: ["身体状态"], note: "周末睡饱了，心里松一点。", createdAt: now - 86400000 * 8 },
+    { id: "s0b", moodId: "angry", intensity: 7, triggers: ["家庭关系"], note: "家里一句话顶上来，火气又起。", createdAt: now - 86400000 * 10 },
+    { id: "s0a", moodId: "anxious", intensity: 8, triggers: ["学业 deadline", "自我苛责"], note: "上周ddl更慌，几乎睡不好。", createdAt: now - 86400000 * 12 },
   ];
 };
 
@@ -734,6 +737,177 @@ function entriesInLastDays(days = 7) {
   start.setHours(0, 0, 0, 0);
   start.setDate(start.getDate() - (days - 1));
   return sortEntriesDesc(state.entries.filter((e) => e.createdAt >= start.getTime()));
+}
+
+/** 含起止日：fromDaysAgo=6,toDaysAgo=0 为本周；13–7 为上周 */
+function entriesInDaysAgoRange(fromDaysAgo, toDaysAgo) {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - fromDaysAgo);
+  const end = new Date();
+  end.setHours(23, 59, 59, 999);
+  end.setDate(end.getDate() - toDaysAgo);
+  return sortEntriesDesc(
+    state.entries.filter((e) => e.createdAt >= start.getTime() && e.createdAt <= end.getTime())
+  );
+}
+
+function weekWindowLabel(fromDaysAgo, toDaysAgo) {
+  const a = new Date();
+  a.setHours(0, 0, 0, 0);
+  a.setDate(a.getDate() - fromDaysAgo);
+  const b = new Date();
+  b.setHours(0, 0, 0, 0);
+  b.setDate(b.getDate() - toDaysAgo);
+  return `${a.getMonth() + 1}/${a.getDate()} - ${b.getMonth() + 1}/${b.getDate()}`;
+}
+
+function summarizeWeekEntries(entries) {
+  const count = entries.length;
+  const avgIntensity = count
+    ? +(entries.reduce((s, e) => s + e.intensity, 0) / count).toFixed(1)
+    : 0;
+  const avgScore = count
+    ? +(entries.reduce((s, e) => s + moodById(e.moodId).score, 0) / count).toFixed(1)
+    : 0;
+  const moodCount = {};
+  entries.forEach((e) => {
+    moodCount[e.moodId] = (moodCount[e.moodId] || 0) + 1;
+  });
+  const topMood = Object.entries(moodCount)
+    .map(([id, c]) => ({ ...moodById(id), count: c }))
+    .sort((a, b) => b.count - a.count)[0] || null;
+  const distressCount = entries.filter((e) => isDistressMood(e.moodId)).length;
+  const distressRatio = count ? Math.round((distressCount / count) * 100) : 0;
+  const highIntensity = entries.filter((e) => e.intensity >= 7).length;
+  return { count, avgIntensity, avgScore, topMood, distressRatio, highIntensity, entries };
+}
+
+function dailyAvgScores(fromDaysAgo, toDaysAgo) {
+  const days = [];
+  for (let i = fromDaysAgo; i >= toDaysAgo; i--) {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() - i);
+    const key = d.toDateString();
+    const dayEntries = state.entries.filter((e) => new Date(e.createdAt).toDateString() === key);
+    const avg = dayEntries.length
+      ? dayEntries.reduce((s, e) => s + moodById(e.moodId).score, 0) / dayEntries.length
+      : 0;
+    days.push({
+      label: `${d.getMonth() + 1}/${d.getDate()}`,
+      weekday: ["日", "一", "二", "三", "四", "五", "六"][d.getDay()],
+      avg,
+      count: dayEntries.length,
+    });
+  }
+  return days;
+}
+
+function formatDelta(n, digits = 1) {
+  if (n === 0 || Number.isNaN(n)) return "持平";
+  const v = Number(n.toFixed(digits));
+  return v > 0 ? `↑${v}` : `↓${Math.abs(v)}`;
+}
+
+function buildWeekCompare() {
+  const thisEntries = entriesInDaysAgoRange(6, 0);
+  const lastEntries = entriesInDaysAgoRange(13, 7);
+  const curr = summarizeWeekEntries(thisEntries);
+  const prev = summarizeWeekEntries(lastEntries);
+  const thisDays = dailyAvgScores(6, 0);
+  const lastDays = dailyAvgScores(13, 7);
+  const maxAvg = Math.max(...thisDays.map((d) => d.avg), ...lastDays.map((d) => d.avg), 1);
+
+  const dCount = curr.count - prev.count;
+  const dIntensity = +(curr.avgIntensity - prev.avgIntensity).toFixed(1);
+  const dScore = +(curr.avgScore - prev.avgScore).toFixed(1);
+  const dDistress = curr.distressRatio - prev.distressRatio;
+
+  const metrics = [
+    {
+      key: "count",
+      label: "记录次数",
+      prev: prev.count,
+      curr: curr.count,
+      max: Math.max(prev.count, curr.count, 1),
+      delta: formatDelta(dCount, 0),
+      better: dCount >= 0,
+    },
+    {
+      key: "score",
+      label: "情绪平稳分",
+      prev: prev.avgScore || 0,
+      curr: curr.avgScore || 0,
+      max: 5,
+      delta: formatDelta(dScore, 1),
+      better: dScore >= 0,
+      hint: "越高越偏平静/积极",
+    },
+    {
+      key: "intensity",
+      label: "平均感受强度",
+      prev: prev.avgIntensity || 0,
+      curr: curr.avgIntensity || 0,
+      max: 10,
+      delta: formatDelta(dIntensity, 1),
+      better: null,
+      hint: "感受有多强烈，不是好坏",
+    },
+    {
+      key: "distress",
+      label: "难受情绪占比",
+      prev: prev.distressRatio,
+      curr: curr.distressRatio,
+      max: 100,
+      delta: formatDelta(dDistress, 0) + (dDistress !== 0 ? "%" : ""),
+      better: dDistress <= 0,
+      unit: "%",
+    },
+  ];
+
+  const notes = [];
+  if (!prev.count && !curr.count) {
+    notes.push("近两周都还没有记录。先从本周签到开始，下周就能看到变化了。");
+  } else if (!prev.count) {
+    notes.push("上周几乎还没留下痕迹，本周已开始记录——对比会越来越有意义。");
+  } else if (!curr.count) {
+    notes.push("上周有记录，本周暂时空着。补一两天签到，变化曲线就会接上。");
+  } else {
+    if (dCount > 0) notes.push(`本周多记了 ${dCount} 次，觉察的频率在往上走。`);
+    else if (dCount < 0) notes.push(`本周比上周少记了 ${Math.abs(dCount)} 次，忙也没关系，回来记一条就好。`);
+    else notes.push("两周记录次数差不多，节奏保持得不错。");
+
+    if (dScore > 0.3) notes.push(`情绪平稳分上升 ${dScore}，整体比上周更稳一点。`);
+    else if (dScore < -0.3) notes.push(`情绪平稳分下降 ${Math.abs(dScore)}，这一周可能更辛苦，你已经在看见它了。`);
+
+    if (dDistress <= -10) notes.push(`难受类情绪占比下降 ${Math.abs(dDistress)}%，呼吸与关怀可能帮上了忙。`);
+    else if (dDistress >= 10) notes.push(`难受类情绪占比上升 ${dDistress}%，可以多给自己一次呼吸或三件好事。`);
+
+    if (curr.topMood && prev.topMood && curr.topMood.id !== prev.topMood.id) {
+      notes.push(
+        `主导情绪从「${prev.topMood.emoji}${prev.topMood.name}」变为「${curr.topMood.emoji}${curr.topMood.name}」。`
+      );
+    } else if (curr.topMood) {
+      notes.push(`两周主导情绪都是「${curr.topMood.emoji}${curr.topMood.name}」，可以留意它常在什么场景出现。`);
+    }
+
+    if (notes.length < 2) {
+      notes.push("变化不必追求「变好」，看见差异本身就是一种照顾自己。");
+    }
+  }
+
+  return {
+    thisLabel: weekWindowLabel(6, 0),
+    lastLabel: weekWindowLabel(13, 7),
+    curr,
+    prev,
+    metrics,
+    thisDays,
+    lastDays,
+    maxAvg,
+    notes,
+  };
 }
 
 function buildWeeklyReport() {
@@ -1874,6 +2048,7 @@ function goCalendarToday() {
 
 function renderReport() {
   const report = buildWeeklyReport();
+  const compare = buildWeekCompare();
   const { year, month } = state.calendarCursor;
   const cells = buildMonthCalendar(year, month);
   const monthLabel = `${year}年${month + 1}月`;
@@ -1934,6 +2109,70 @@ function renderReport() {
           <span><i class="dot today"></i>今天</span>
           <span><i class="dot week"></i>近 7 天</span>
           <span>有记录的日子会显示心情符号</span>
+        </div>
+      </div>
+
+      <div class="card week-compare" style="margin-top:14px;">
+        <div class="compare-head">
+          <div>
+            <h3>上周 vs 本周</h3>
+            <p>上周 ${compare.lastLabel} · 本周 ${compare.thisLabel}</p>
+          </div>
+          <div class="compare-legend">
+            <span><i class="swatch prev"></i>上周</span>
+            <span><i class="swatch curr"></i>本周</span>
+          </div>
+        </div>
+        <div class="compare-metrics">
+          ${compare.metrics
+            .map((m) => {
+              const prevH = Math.max(8, (Number(m.prev) / m.max) * 100);
+              const currH = Math.max(8, (Number(m.curr) / m.max) * 100);
+              const deltaCls =
+                m.better === null ? "neutral" : m.better ? "up" : "down";
+              return `
+              <div class="compare-metric">
+                <div class="compare-metric-label">
+                  <strong>${m.label}</strong>
+                  ${m.hint ? `<small>${m.hint}</small>` : ""}
+                </div>
+                <div class="compare-pair">
+                  <div class="compare-bar-wrap" title="上周 ${m.prev}${m.unit || ""}">
+                    <div class="compare-bar prev" style="height:${prevH}%"></div>
+                    <span>${m.prev}${m.unit || ""}</span>
+                  </div>
+                  <div class="compare-bar-wrap" title="本周 ${m.curr}${m.unit || ""}">
+                    <div class="compare-bar curr" style="height:${currH}%"></div>
+                    <span>${m.curr}${m.unit || ""}</span>
+                  </div>
+                </div>
+                <div class="compare-delta ${deltaCls}">${m.delta}</div>
+              </div>`;
+            })
+            .join("")}
+        </div>
+        <div class="compare-trend">
+          <h4>按日情绪平稳分对比</h4>
+          <div class="compare-chart">
+            ${compare.thisDays
+              .map((day, i) => {
+                const last = compare.lastDays[i];
+                const hCurr = Math.max(6, (day.avg / compare.maxAvg) * 100);
+                const hPrev = Math.max(6, ((last?.avg || 0) / compare.maxAvg) * 100);
+                return `
+                <div class="compare-day">
+                  <div class="compare-day-bars">
+                    <div class="pill prev" style="height:${last?.avg ? hPrev : 6}%"></div>
+                    <div class="pill curr" style="height:${day.avg ? hCurr : 6}%"></div>
+                  </div>
+                  <small>${day.weekday}</small>
+                </div>`;
+              })
+              .join("")}
+          </div>
+        </div>
+        <div class="compare-notes">
+          ${compare.notes.map((n) => `<p>${n}</p>`).join("")}
         </div>
       </div>
 
