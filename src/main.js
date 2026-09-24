@@ -1590,11 +1590,8 @@ function renderNav() {
         <nav class="nav" aria-label="任务流程导航">
           ${items
             .map(
-              ([id, label], i) =>
-                `<button data-nav="${id}" class="${state.view === id ? "active" : ""}" title="步骤 ${i + 1}">
-                  <span class="nav-step">${i + 1}</span>
-                  <span class="nav-label">${label}</span>
-                </button>`
+              ([id, label]) =>
+                `<button data-nav="${id}" class="${state.view === id ? "active" : ""}">${label}</button>`
             )
             .join("")}
         </nav>

@@ -42,10 +42,8 @@ button { cursor: pointer; border: none; background: none; }
 .brand-sub { font-size: 0.82rem; color: var(--ink-soft); }
 .nav { display: flex; gap: 4px; background: rgba(255,255,255,0.55); border: 1px solid var(--line); border-radius: 999px; padding: 5px; backdrop-filter: blur(10px); overflow-x: auto; max-width: min(78vw, 720px); -webkit-overflow-scrolling: touch; scrollbar-width: none; }
 .nav::-webkit-scrollbar { display: none; }
-.nav button { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 6px 10px; border-radius: 999px; font-size: 0.84rem; color: var(--ink-soft); transition: background 0.2s ease, color 0.2s ease; white-space: nowrap; line-height: 1.15; }
-.nav button .nav-step { font-size: 0.62rem; opacity: 0.55; font-weight: 600; letter-spacing: 0.02em; }
+.nav button { padding: 8px 12px; border-radius: 999px; font-size: 0.84rem; color: var(--ink-soft); transition: background 0.2s ease, color 0.2s ease; white-space: nowrap; }
 .nav button.active { background: var(--accent); color: #fff; }
-.nav button.active .nav-step { opacity: 0.85; }
 .user-chip {
   display: inline-flex;
   align-items: center;
@@ -756,12 +754,9 @@ button { cursor: pointer; border: none; background: none; }
     flex: 1 1 0;
     min-width: 0;
     width: 0;
-    padding: 8px 2px;
-    font-size: 0.7rem;
-    gap: 2px;
+    padding: 10px 2px;
+    font-size: 0.72rem;
   }
-  .nav button .nav-step { font-size: 0.58rem; }
-  .nav button .nav-label { max-width: 100%; overflow: hidden; text-overflow: clip; }
   .app-shell {
     padding: 14px 14px 108px;
     padding-left: max(14px, env(safe-area-inset-left));
@@ -822,7 +817,6 @@ button { cursor: pointer; border: none; background: none; }
 @media (max-width: 420px) {
   .mood-mini { gap: 5px; }
   .mood-mini button { border-radius: 14px; font-size: 1.15rem; }
-  .nav button { padding: 8px 1px; font-size: 0.66rem; }
-  .nav button .nav-step { display: none; }
+  .nav button { padding: 10px 1px; font-size: 0.68rem; }
   .user-chip span.hide-xs { display: none; }
 }
