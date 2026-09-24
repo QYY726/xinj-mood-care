@@ -2290,6 +2290,7 @@ function bind() {
     });
   });
   document.querySelectorAll("[data-mood]").forEach((btn) => {
+    btn.addEventListener("contextmenu", (e) => e.preventDefault());
     btn.addEventListener("click", () => {
       const id = btn.getAttribute("data-mood");
       state.draft.moodId = id;
@@ -2301,6 +2302,7 @@ function bind() {
     });
   });
   document.querySelectorAll("[data-trigger]").forEach((btn) => {
+    btn.addEventListener("contextmenu", (e) => e.preventDefault());
     btn.addEventListener("click", (e) => {
       if (e.target.closest("[data-remove-trigger]")) return;
       const t = btn.getAttribute("data-trigger");

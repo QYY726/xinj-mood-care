@@ -27,7 +27,18 @@ body {
   overflow-x: hidden;
 }
 button, input, textarea, select { font: inherit; color: inherit; }
-button { cursor: pointer; border: none; background: none; }
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+button:focus { outline: none; }
+button:focus-visible { outline: 2px solid rgba(47,111,94,0.45); outline-offset: 2px; }
 .app-shell {
   max-width: 1100px;
   margin: 0 auto;
@@ -96,12 +107,42 @@ button { cursor: pointer; border: none; background: none; }
 .field textarea { min-height: 96px; resize: vertical; }
 .field input:focus, .field textarea:focus, .field select:focus { border-color: rgba(47,111,94,0.45); box-shadow: 0 0 0 3px rgba(47,111,94,0.12); }
 .mood-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
-.mood-opt { border: 1px solid var(--line); border-radius: 16px; padding: 12px 6px; text-align: center; background: rgba(255,255,255,0.7); transition: 0.2s ease; }
+.mood-opt {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 12px 6px;
+  text-align: center;
+  background: rgba(255,255,255,0.7);
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+.mood-opt .emoji,
+.mood-opt .name {
+  pointer-events: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
 .mood-opt .emoji { font-size: 1.5rem; display: block; margin-bottom: 4px; }
 .mood-opt .name { font-size: 0.78rem; color: var(--ink-soft); }
 .mood-opt.selected { border-color: var(--accent); background: rgba(47,111,94,0.1); transform: translateY(-2px); }
+.mood-opt:active { transform: scale(0.98); }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
-.chip { border: 1px solid var(--line); border-radius: 999px; padding: 7px 12px; font-size: 0.84rem; background: rgba(255,255,255,0.7); }
+.chip {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 0.84rem;
+  background: rgba(255,255,255,0.7);
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+}
 .chip.on { background: rgba(47,111,94,0.12); border-color: rgba(47,111,94,0.35); color: var(--accent); font-weight: 600; }
 .range-row { display: flex; align-items: center; gap: 12px; }
 .range-row input[type=range] { flex: 1; accent-color: var(--accent); }
