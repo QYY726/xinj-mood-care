@@ -608,18 +608,30 @@ button:active {
   display: flex;
   gap: 8px;
   margin-top: 10px;
+  align-items: stretch;
 }
 .trigger-add input {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
   border: 1px solid var(--line);
   background: rgba(255,255,255,0.85);
   border-radius: 14px;
   padding: 10px 12px;
   outline: none;
+  font-size: 0.9rem;
+}
+.trigger-add .btn-soft {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 .trigger-add input:focus {
   border-color: rgba(47,111,94,0.45);
   box-shadow: 0 0 0 3px rgba(47,111,94,0.12);
+}
+.trigger-add input::placeholder {
+  color: var(--ink-soft);
+  opacity: 1;
 }
 .record-solo { max-width: 720px; margin: 0 auto; }
 .record-next-hint {

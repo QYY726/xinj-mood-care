@@ -1730,15 +1730,15 @@ function showDiaryCardModal() {
 }
 
 function renderNav() {
-  // 任务流：首页 → 记录 → 调节(呼吸) → 关怀 → 洞察 → 周报 → 日记
+  // 首页 → 记录 → 关怀 → 呼吸 → 洞察 → 日记 → 周报
   const items = [
     ["home", "首页"],
     ["record", "记录"],
-    ["breathe", "呼吸"],
     ["care", "关怀"],
+    ["breathe", "呼吸"],
     ["insight", "洞察"],
-    ["report", "周报"],
     ["diary", "日记"],
+    ["report", "周报"],
   ];
   const accountLabel = state.user
     ? state.user.name
@@ -1814,7 +1814,7 @@ function renderHome() {
       <div class="section-head">
         <div>
           <h2>今日建议路径</h2>
-          <p>记录 → 呼吸 → 关怀 → 洞察 → 周报</p>
+          <p>记录 → 关怀 → 呼吸 → 洞察 → 日记 → 周报</p>
         </div>
       </div>
       <div class="grid-3">
@@ -1892,17 +1892,17 @@ function renderRecord() {
               })
               .join("")}
           </div>
-          <div class="trigger-add">
-            <input data-custom-trigger type="text" maxlength="20" placeholder="添加我的触发因素，如：被催进度" value="${d.customInput || ""}" />
-            <button class="btn-soft" data-add-trigger type="button">添加</button>
-          </div>
+            <div class="trigger-add">
+              <input data-custom-trigger type="text" maxlength="20" placeholder="自定义触发，如：被催进度" title="添加我的触发因素，例如：被催进度" value="${d.customInput || ""}" />
+              <button class="btn-soft" data-add-trigger type="button">添加</button>
+            </div>
         </div>
         <div class="field">
           <label>想说的话（可选）</label>
           <textarea data-note placeholder="发生了什么？身体有什么感觉？">${d.note}</textarea>
         </div>
         <button class="btn-primary" data-save type="button">保存并获取关怀建议</button>
-        <p class="record-next-hint">保存后可去「呼吸」调节，或在「关怀」里写今日三件好事。</p>
+        <p class="record-next-hint">保存后可去「关怀」写三件好事，或做一轮「呼吸」调节。</p>
       </div>
     </section>
   `;
