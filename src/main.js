@@ -1556,13 +1556,14 @@ function showDiaryCardModal() {
 }
 
 function renderNav() {
+  // 任务流：首页 → 记录 → 调节(呼吸) → 关怀 → 洞察 → 周报 → 日记
   const items = [
     ["home", "首页"],
     ["record", "记录"],
+    ["breathe", "呼吸"],
+    ["care", "关怀"],
     ["insight", "洞察"],
     ["report", "周报"],
-    ["care", "关怀"],
-    ["breathe", "呼吸"],
     ["diary", "日记"],
   ];
   const accountLabel = state.user
@@ -1586,11 +1587,14 @@ function renderNav() {
               : `<button type="button" data-goto-auth>登录</button>`
           }
         </div>
-        <nav class="nav">
+        <nav class="nav" aria-label="任务流程导航">
           ${items
             .map(
-              ([id, label]) =>
-                `<button data-nav="${id}" class="${state.view === id ? "active" : ""}">${label}</button>`
+              ([id, label], i) =>
+                `<button data-nav="${id}" class="${state.view === id ? "active" : ""}" title="步骤 ${i + 1}">
+                  <span class="nav-step">${i + 1}</span>
+                  <span class="nav-label">${label}</span>
+                </button>`
             )
             .join("")}
         </nav>
@@ -1639,7 +1643,7 @@ function renderHome() {
       <div class="section-head">
         <div>
           <h2>今日建议路径</h2>
-          <p>记录 → 调节 → 回访强度 → 周报复盘</p>
+          <p>记录 → 呼吸 → 关怀 → 洞察 → 周报</p>
         </div>
       </div>
       <div class="grid-3">
@@ -1653,7 +1657,7 @@ function renderHome() {
         </article>
         <article class="card care-card">
           <div>
-            <span class="tag">02 调节</span>
+            <span class="tag">02 呼吸</span>
             <h3>呼吸引导动画</h3>
             <p>跟着圆圈节奏吸气、屏息、呼气，马上能开始。</p>
           </div>
@@ -1675,105 +1679,59 @@ function renderHome() {
 function renderRecord() {
   const d = state.draft;
   const triggers = allTriggers();
-  const goodsFilled = countFilledGoods(state.goodsDraft);
-  const weekGoods = goodsInRange(7).reduce((n, day) => n + day.items.length, 0);
-  const latest = state.entries[0];
-  const latestMood = latest ? moodById(latest.moodId) : null;
-  const latestTime = latest
-    ? new Date(latest.createdAt).toLocaleString("zh-CN", {
-        month: "numeric",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    : "";
 
   return `
     <section class="section">
       <div class="section-head">
         <div>
           <h2>记录这一刻</h2>
-          <p>真实就好，没有对错 · 连续签到 ${calcStreak()} 天</p>
+          <p>真实就好，没有对错 · 连续签到 ${calcStreak()} 天 · 约 30 秒</p>
         </div>
       </div>
-      <div class="grid-2 record-layout">
-        <div class="card record-main">
-          <div class="field">
-            <label>此刻情绪</label>
-            <div class="mood-grid">
-              ${MOODS.map(
-                (m) => `
-                <button class="mood-opt ${d.moodId === m.id ? "selected" : ""}" data-mood="${m.id}">
-                  <span class="emoji">${m.emoji}</span>
-                  <span class="name">${m.name}</span>
-                </button>`
-              ).join("")}
-            </div>
+      <div class="card record-main record-solo">
+        <div class="field">
+          <label>1. 此刻情绪</label>
+          <div class="mood-grid">
+            ${MOODS.map(
+              (m) => `
+              <button type="button" class="mood-opt ${d.moodId === m.id ? "selected" : ""}" data-mood="${m.id}">
+                <span class="emoji">${m.emoji}</span>
+                <span class="name">${m.name}</span>
+              </button>`
+            ).join("")}
           </div>
-          <div class="field">
-            <label>情绪强度 <span class="field-hint">感受有多强烈，不是好坏</span></label>
-            <div class="range-row">
-              <input type="range" min="1" max="10" value="${d.intensity}" data-intensity />
-              <div class="intensity-val">${d.intensity}/10</div>
-            </div>
-            <p class="field-note">${intensityHint(d.moodId)}</p>
-          </div>
-          <div class="field">
-            <label>可能的触发因素（可多选 / 可自定义）</label>
-            <div class="chips">
-              ${triggers
-                .map((t) => {
-                  const isCustom = state.customTriggers.includes(t);
-                  return `<button class="chip ${d.triggers.includes(t) ? "on" : ""} ${isCustom ? "custom" : ""}" data-trigger="${t}">
-                    ${t}${isCustom ? `<span class="chip-x" data-remove-trigger="${t}" title="删除">×</span>` : ""}
-                  </button>`;
-                })
-                .join("")}
-            </div>
-            <div class="trigger-add">
-              <input data-custom-trigger type="text" maxlength="20" placeholder="添加我的触发因素，如：被催进度" value="${d.customInput || ""}" />
-              <button class="btn-soft" data-add-trigger type="button">添加</button>
-            </div>
-          </div>
-          <div class="field field-grow">
-            <label>想说的话（可选）</label>
-            <textarea data-note placeholder="发生了什么？身体有什么感觉？">${d.note}</textarea>
-          </div>
-          <button class="btn-primary" data-save>保存并获取关怀建议</button>
         </div>
-        <aside class="card record-side-card">
-          <div class="record-side-top">
-            <h3>今日三件好事</h3>
-            <p class="goods-progress">今日已写 <strong>${goodsFilled}/3</strong>${weekGoods ? ` · 近7天共 ${weekGoods} 件` : ""}</p>
-            <div class="goods-box">
-              ${GOODS_PROMPTS.map(
-                (prompt, i) => `
-                <label class="goods-item">
-                  <span>${i + 1}. ${prompt}</span>
-                  <input data-goods-input="${i}" type="text" maxlength="60" placeholder="写下一件就好" value="${escapeAttr(state.goodsDraft[i] || "")}" />
-                </label>`
-              ).join("")}
-              <button class="btn-primary" data-save-goods type="button">${goodsFilled >= 3 ? "更新三件好事" : "收好这些好事"}</button>
-            </div>
-            <div class="record-side-actions">
-              <button class="btn-soft" data-nav="breathe">先呼吸一轮</button>
-              <button class="btn-ghost" data-nav="care">全部关怀建议</button>
-            </div>
+        <div class="field">
+          <label>2. 情绪强度 <span class="field-hint">感受有多强烈，不是好坏</span></label>
+          <div class="range-row">
+            <input type="range" min="1" max="10" value="${d.intensity}" data-intensity />
+            <div class="intensity-val">${d.intensity}/10</div>
           </div>
-          <div class="record-latest-block">
-            <h3>最近一条</h3>
-            ${
-              latest
-                ? `<p class="record-latest">
-                    <strong>${latestMood.emoji} ${latestMood.name}</strong>
-                    <span>感受强度 ${latest.intensity}/10 · ${latestTime}</span>
-                    ${latest.note ? `<em>${latest.note}</em>` : `<em style="opacity:.7">当时没有写文字</em>`}
-                  </p>
-                  <button class="btn-ghost" data-nav="diary" style="margin-top:10px;">查看全部日记</button>`
-                : `<p style="color:var(--ink-soft);">还没有记录。保存这一条后，会在这里回看。</p>`
-            }
+          <p class="field-note" data-intensity-hint>${intensityHint(d.moodId)}</p>
+        </div>
+        <div class="field">
+          <label>3. 可能的触发因素（可多选）</label>
+          <div class="chips">
+            ${triggers
+              .map((t) => {
+                const isCustom = state.customTriggers.includes(t);
+                return `<button type="button" class="chip ${d.triggers.includes(t) ? "on" : ""} ${isCustom ? "custom" : ""}" data-trigger="${t}">
+                  ${t}${isCustom ? `<span class="chip-x" data-remove-trigger="${t}" title="删除">×</span>` : ""}
+                </button>`;
+              })
+              .join("")}
           </div>
-        </aside>
+          <div class="trigger-add">
+            <input data-custom-trigger type="text" maxlength="20" placeholder="添加我的触发因素，如：被催进度" value="${d.customInput || ""}" />
+            <button class="btn-soft" data-add-trigger type="button">添加</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>4. 想说的话（可选）</label>
+          <textarea data-note placeholder="发生了什么？身体有什么感觉？">${d.note}</textarea>
+        </div>
+        <button class="btn-primary" data-save type="button">保存并获取关怀建议</button>
+        <p class="record-next-hint">保存后可去「呼吸」调节，或在「关怀」里写今日三件好事。</p>
       </div>
     </section>
   `;
@@ -2037,16 +1995,36 @@ function renderCare() {
   const latest = state.entries[0];
   const mood = latest ? moodById(latest.moodId) : moodById("calm");
   const plans = careFor(mood.id);
+  const goodsFilled = countFilledGoods(state.goodsDraft);
+  const weekGoods = goodsInRange(7).reduce((n, day) => n + day.items.length, 0);
   return `
     <section class="section">
       <div class="section-head">
         <div>
           <h2>自我关怀方案</h2>
-          <p>基于「${mood.emoji} ${mood.name}」为你推荐，完成后可回访感受强度变化</p>
+          <p>基于「${mood.emoji} ${mood.name}」为你推荐 · 先调节，再回访感受强度</p>
         </div>
         <button class="btn-ghost" data-nav="breathe">打开呼吸引导</button>
       </div>
-      <div class="grid-3">
+      <div class="card goods-care-card">
+        <div class="section-head" style="margin-bottom:8px;padding:0;">
+          <div>
+            <h3 style="font-family:var(--font-display);font-size:1.2rem;">今日三件好事</h3>
+            <p class="goods-progress">今日已写 <strong>${goodsFilled}/3</strong>${weekGoods ? ` · 近7天共 ${weekGoods} 件` : ""}</p>
+          </div>
+        </div>
+        <div class="goods-box goods-box-grid">
+          ${GOODS_PROMPTS.map(
+            (prompt, i) => `
+            <label class="goods-item">
+              <span>${i + 1}. ${prompt}</span>
+              <input data-goods-input="${i}" type="text" maxlength="60" placeholder="写下一件就好" value="${escapeAttr(state.goodsDraft[i] || "")}" />
+            </label>`
+          ).join("")}
+        </div>
+        <button class="btn-primary" data-save-goods type="button" style="margin-top:12px;">${goodsFilled >= 3 ? "更新三件好事" : "收好这些好事"}</button>
+      </div>
+      <div class="grid-3" style="margin-top:14px;">
         ${plans
           .map(
             (p) => `
@@ -2316,9 +2294,13 @@ function bind() {
   });
   document.querySelectorAll("[data-mood]").forEach((btn) => {
     btn.addEventListener("click", () => {
-      state.draft.moodId = btn.getAttribute("data-mood");
-      state.recordTipIndex = 0;
-      render();
+      const id = btn.getAttribute("data-mood");
+      state.draft.moodId = id;
+      document.querySelectorAll("[data-mood]").forEach((el) => {
+        el.classList.toggle("selected", el.getAttribute("data-mood") === id);
+      });
+      const hint = document.querySelector("[data-intensity-hint]");
+      if (hint) hint.textContent = intensityHint(id);
     });
   });
   document.querySelectorAll("[data-trigger]").forEach((btn) => {
@@ -2329,7 +2311,7 @@ function bind() {
       if (set.has(t)) set.delete(t);
       else set.add(t);
       state.draft.triggers = [...set];
-      render();
+      btn.classList.toggle("on", set.has(t));
     });
   });
   document.querySelectorAll("[data-remove-trigger]").forEach((btn) => {

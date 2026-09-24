@@ -40,10 +40,12 @@ button { cursor: pointer; border: none; background: none; }
 .topbar-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
 .brand-mark { font-family: var(--font-display); font-size: 1.85rem; font-weight: 700; letter-spacing: 0.02em; }
 .brand-sub { font-size: 0.82rem; color: var(--ink-soft); }
-.nav { display: flex; gap: 4px; background: rgba(255,255,255,0.55); border: 1px solid var(--line); border-radius: 999px; padding: 5px; backdrop-filter: blur(10px); overflow-x: auto; max-width: min(72vw, 640px); -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.nav { display: flex; gap: 4px; background: rgba(255,255,255,0.55); border: 1px solid var(--line); border-radius: 999px; padding: 5px; backdrop-filter: blur(10px); overflow-x: auto; max-width: min(78vw, 720px); -webkit-overflow-scrolling: touch; scrollbar-width: none; }
 .nav::-webkit-scrollbar { display: none; }
-.nav button { padding: 8px 12px; border-radius: 999px; font-size: 0.84rem; color: var(--ink-soft); transition: 0.25s ease; white-space: nowrap; }
+.nav button { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 6px 10px; border-radius: 999px; font-size: 0.84rem; color: var(--ink-soft); transition: background 0.2s ease, color 0.2s ease; white-space: nowrap; line-height: 1.15; }
+.nav button .nav-step { font-size: 0.62rem; opacity: 0.55; font-weight: 600; letter-spacing: 0.02em; }
 .nav button.active { background: var(--accent); color: #fff; }
+.nav button.active .nav-step { opacity: 0.85; }
 .user-chip {
   display: inline-flex;
   align-items: center;
@@ -392,6 +394,22 @@ button { cursor: pointer; border: none; background: none; }
   border-color: rgba(47,111,94,0.45);
   box-shadow: 0 0 0 3px rgba(47,111,94,0.12);
 }
+.record-solo { max-width: 720px; margin: 0 auto; }
+.record-next-hint {
+  margin-top: 12px;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+.goods-care-card { margin-bottom: 4px; }
+.goods-box-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+@media (max-width: 860px) {
+  .goods-box-grid { grid-template-columns: 1fr; }
+}
 .record-layout { align-items: stretch; }
 .record-main,
 .record-side-card {
@@ -726,17 +744,24 @@ button { cursor: pointer; border: none; background: none; }
     max-width: none;
     width: auto;
     z-index: 40;
-    justify-content: flex-start;
-    gap: 2px;
+    display: flex;
+    justify-content: space-between;
+    align-items: stretch;
+    gap: 0;
     padding: 6px;
     box-shadow: 0 12px 30px rgba(26, 46, 40, 0.16);
     background: rgba(255,255,255,0.92);
   }
   .nav button {
-    flex: 0 0 auto;
-    padding: 10px 11px;
-    font-size: 0.78rem;
+    flex: 1 1 0;
+    min-width: 0;
+    width: 0;
+    padding: 8px 2px;
+    font-size: 0.7rem;
+    gap: 2px;
   }
+  .nav button .nav-step { font-size: 0.58rem; }
+  .nav button .nav-label { max-width: 100%; overflow: hidden; text-overflow: clip; }
   .app-shell {
     padding: 14px 14px 108px;
     padding-left: max(14px, env(safe-area-inset-left));
@@ -797,6 +822,7 @@ button { cursor: pointer; border: none; background: none; }
 @media (max-width: 420px) {
   .mood-mini { gap: 5px; }
   .mood-mini button { border-radius: 14px; font-size: 1.15rem; }
-  .nav button { padding: 10px 9px; font-size: 0.72rem; }
+  .nav button { padding: 8px 1px; font-size: 0.66rem; }
+  .nav button .nav-step { display: none; }
   .user-chip span.hide-xs { display: none; }
 }
