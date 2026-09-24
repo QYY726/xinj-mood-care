@@ -1687,19 +1687,19 @@ function renderRecord() {
       </div>
       <div class="card record-main record-solo">
         <div class="field">
-          <label>1. 此刻情绪</label>
+          <label>此刻情绪</label>
           <div class="mood-grid">
             ${MOODS.map(
               (m) => `
-              <button type="button" class="mood-opt ${d.moodId === m.id ? "selected" : ""}" data-mood="${m.id}">
-                <span class="emoji">${m.emoji}</span>
-                <span class="name">${m.name}</span>
+              <button type="button" class="mood-opt ${d.moodId === m.id ? "selected" : ""}" data-mood="${m.id}" aria-label="${m.name}">
+                <span class="emoji" aria-hidden="true">${m.emoji}</span>
+                <span class="name" aria-hidden="true">${m.name}</span>
               </button>`
             ).join("")}
           </div>
         </div>
         <div class="field">
-          <label>2. 情绪强度 <span class="field-hint">感受有多强烈，不是好坏</span></label>
+          <label>情绪强度 <span class="field-hint">感受有多强烈，不是好坏</span></label>
           <div class="range-row">
             <input type="range" min="1" max="10" value="${d.intensity}" data-intensity />
             <div class="intensity-val">${d.intensity}/10</div>
@@ -1707,7 +1707,7 @@ function renderRecord() {
           <p class="field-note" data-intensity-hint>${intensityHint(d.moodId)}</p>
         </div>
         <div class="field">
-          <label>3. 可能的触发因素（可多选）</label>
+          <label>可能的触发因素（可多选）</label>
           <div class="chips">
             ${triggers
               .map((t) => {
@@ -1724,7 +1724,7 @@ function renderRecord() {
           </div>
         </div>
         <div class="field">
-          <label>4. 想说的话（可选）</label>
+          <label>想说的话（可选）</label>
           <textarea data-note placeholder="发生了什么？身体有什么感觉？">${d.note}</textarea>
         </div>
         <button class="btn-primary" data-save type="button">保存并获取关怀建议</button>
@@ -2271,6 +2271,14 @@ function bindAuth() {
 function bind() {
   document.querySelectorAll("[data-nav]").forEach((btn) => {
     btn.addEventListener("click", () => setView(btn.getAttribute("data-nav")));
+  });
+  // 禁止情绪格/标签被系统选中文字、弹出复制菜单（部分国产浏览器需 JS）
+  document.querySelectorAll(".mood-grid, .chips, .nav, .mood-mini, .mode-chips").forEach((el) => {
+    el.addEventListener("selectstart", (e) => e.preventDefault());
+    el.addEventListener("dragstart", (e) => e.preventDefault());
+    el.addEventListener("contextmenu", (e) => {
+      if (e.target.closest("button, .mood-opt, .chip")) e.preventDefault();
+    });
   });
   const logoutBtn = document.querySelector("[data-logout]");
   if (logoutBtn) logoutBtn.addEventListener("click", logoutUser);
